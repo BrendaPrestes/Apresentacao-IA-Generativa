@@ -140,13 +140,13 @@ flowchart TD
 - **Conceitos Técnicos:** `StateGraph`, arestas condicionais (*conditional edges*), propagação de estado compartilhado.
 - **Componente Visual & Dinâmica:**
   - Painel com display numérico em tempo real do custo no estado (`R$ 0` → `R$ 5.200` → `R$ 4.650`).
-  - Grafo horizontal com nó de decisão em losango (`≤ R$ 5.000?`).
+  - Grafo horizontal alinhado ao Slide 15 com 9 nós: `Usuário` → `Guardrails (entrada)` → `Roteador (LLM)` → `Guia (RAG)` → `Clima (web)` → `Finanças (cálculo)` → losango de decisão `≤ R$ 5.000?` → `Guardrails (saída)` → `Resposta (roteiro)`.
   - Aresta condicional em vermelho (`loop`) retrocedendo ao Nó Guia.
 - **Animação / Regra Zero:**
-  1. O token percorre o grafo até o Nó Financeiro e a soma inicial atinge `R$ 5.200` (Hotel inicial de R$ 2.500 + Passeios R$ 1.100 + Gastronomia/Traslados R$ 1.600).
+  1. O token passa pelo Guardrail de Entrada, pelo Roteador e pelos nós especialistas até o Nó Financeiro, onde a soma inicial atinge `R$ 5.200` (Hotel inicial de R$ 2.500 + Passeios R$ 1.100 + Gastronomia/Traslados R$ 1.600).
   2. O losango aponta `✗ excedeu o orçamento` em vermelho.
   3. A aresta condicional transporta o token de volta para o Guia: *"Guia troca hotel de R$ 2.500 pelo parceiro com cupom (R$ 1.950 · −R$ 550)"*.
-  4. Nova soma atinge `R$ 4.650`, o losango aprova `✓ dentro do orçamento` em verde e avança até a entrega. O ciclo se repete perpetuamente.
+  4. Nova soma atinge `R$ 4.650`, o losango aprova `✓ dentro do orçamento` em verde, passa pelo Guardrail de Saída e avança até a entrega. O ciclo se repete perpetuamente.
 
 ---
 
