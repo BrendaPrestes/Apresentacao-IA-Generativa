@@ -1,962 +1,2023 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Planejador Inteligente de Viagens — IA Generativa, RAG e Agentes</title>
-<script src="assets/vendor/lucide.js"></script>
-<link href="assets/vendor/inter.css" rel="stylesheet">
-<style>
-/* @MIRA:THEME:START */
-/* MIRA THEME: mira-dark (padrão) */
-:root {
-    --mira-primary: #FF904D;
-    --mira-crop: #35D07F;
-    --mira-bg: #000000;
-    --mira-text: #ffffff;
-    --mira-text-soft: rgba(255, 255, 255, 0.70);
-    --mira-text-softer: rgba(255, 255, 255, 0.50);
-    --mira-card-bg: rgba(255, 255, 255, 0.05);
-    --mira-card-border: rgba(255, 255, 255, 0.10);
-    --mira-glow-soft: rgba(255, 144, 77, 0.15);
-    --mira-glow-strong: rgba(255, 144, 77, 0.25);
-    --mira-icon-bg: rgba(255, 144, 77, 0.15);
-    --mira-icon-border: rgba(255, 144, 77, 0.30);
-    --mira-pill-bg: rgba(255, 255, 255, 0.04);
-    --mira-pill-border: rgba(255, 255, 255, 0.08);
-    --mira-stage-glow: rgba(255, 144, 77, 0.06);
-    --mira-accent-2: #FFC766;
-}
-/* @MIRA:THEME:END */
-:root {
-    --cyan: #38bdf8; --purple: #c084fc; --red: #ff5d6c; --green: var(--mira-crop);
-    --orange: var(--mira-primary);
-    --ink: var(--mira-text); --soft: var(--mira-text-soft); --softer: var(--mira-text-softer);
-    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-}
-* { box-sizing: border-box; margin: 0; padding: 0; }
-html, body { height: 100%; background: #000; overflow: hidden; font-family: 'Inter', system-ui, sans-serif; color: var(--ink); }
-
-/* ============ PALCO 16:9 FIXO ============ */
-.slide { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; margin: -540px 0 0 -960px;
-    transform: scale(var(--s, 1)); transform-origin: center; background: #07080d; overflow: hidden;
-    opacity: 0; pointer-events: none; transition: opacity .5s ease; }
-.slide.active { opacity: 1; pointer-events: auto; }
-.slide::before { content: ""; position: absolute; width: 2600px; height: 1600px; left: -340px; top: -260px; pointer-events: none;
-    background:
-        radial-gradient(520px 420px at 18% 22%, rgba(255,144,77,.20), transparent 70%),
-        radial-gradient(560px 460px at 82% 78%, rgba(56,189,248,.14), transparent 70%),
-        radial-gradient(460px 380px at 70% 18%, rgba(192,132,252,.12), transparent 70%);
-    animation: drift 26s ease-in-out infinite alternate; }
-.slide::after { content: ""; position: absolute; inset: 0; pointer-events: none; opacity: .5;
-    background-image: radial-gradient(rgba(255,255,255,.07) 1.2px, transparent 1.4px); background-size: 48px 48px; }
-@keyframes drift { from { transform: translate(0,0) scale(1); } to { transform: translate(-120px,60px) scale(1.08); } }
-
-.hd { position: absolute; left: 120px; right: 120px; top: 78px; z-index: 2; }
-.kick { display: inline-flex; align-items: center; gap: 12px; font: 600 20px var(--mono); letter-spacing: .18em; text-transform: uppercase;
-    color: var(--orange); padding: 10px 22px; border-radius: 999px; background: var(--mira-icon-bg); border: 1px solid var(--mira-icon-border); }
-.kick i { width: 10px; height: 10px; border-radius: 50%; background: var(--orange); animation: pulse 2s ease-in-out infinite; }
-h2 { font-size: 78px; font-weight: 800; letter-spacing: -.035em; line-height: 1.04; margin-top: 26px; max-width: 1500px; }
-h2 .hl, h1 .hl { background: linear-gradient(100deg, var(--orange), var(--mira-accent-2) 55%, #fff); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.sub { font-size: 30px; color: var(--soft); margin-top: 16px; max-width: 1300px; line-height: 1.35; }
-.body { position: absolute; left: 120px; right: 120px; top: 330px; bottom: 100px; z-index: 2; }
-.foot { position: absolute; left: 120px; right: 120px; bottom: 36px; display: flex; justify-content: space-between; z-index: 2;
-    font: 500 18px var(--mono); letter-spacing: .14em; color: var(--softer); text-transform: uppercase; }
-.foot b { color: var(--orange); font-weight: 600; }
-
-/* ============ ENTRADA COREOGRAFADA ============ */
-.reveal { opacity: 0; transform: translateY(34px); transition: opacity .8s cubic-bezier(.22,1,.36,1), transform .8s cubic-bezier(.22,1,.36,1); }
-.slide.active .reveal { opacity: 1; transform: none; transition-delay: calc(var(--i, 0) * .14s + .15s); }
-.slide:not(.active) .reveal { transition: none; }
-.reveal.pop { transform: scale(.88); }
-.slide.active .reveal.pop { transform: scale(1); }
-
-/* ============ COMPONENTES ============ */
-.card { background: var(--mira-card-bg); border: 1px solid var(--mira-card-border); border-radius: 28px; padding: 38px 42px;
-    backdrop-filter: blur(14px); box-shadow: 0 24px 60px rgba(0,0,0,.45); }
-.card h3 { font-size: 36px; font-weight: 700; letter-spacing: -.02em; margin-bottom: 14px; }
-.card p, .card li { font-size: 26px; line-height: 1.45; color: var(--soft); }
-.card li { list-style: none; position: relative; padding-left: 28px; margin-top: 14px; }
-.card li::before { content: ""; position: absolute; left: 0; top: 12px; width: 12px; height: 12px; border-radius: 50%; background: var(--c, var(--orange)); box-shadow: 0 0 14px var(--c, var(--orange)); }
-.card b, .sub b { color: #fff; font-weight: 600; }
-.ico { width: 72px; height: 72px; border-radius: 22px; display: grid; place-items: center; flex: none;
-    background: color-mix(in srgb, var(--c, var(--orange)) 16%, transparent); border: 1px solid color-mix(in srgb, var(--c, var(--orange)) 40%, transparent); }
-.ico svg { width: 36px; height: 36px; color: var(--c, var(--orange)); }
-.pill { display: inline-block; font: 600 20px var(--mono); padding: 8px 18px; border-radius: 999px; background: var(--mira-pill-bg); border: 1px solid var(--mira-pill-border); color: var(--soft); }
-.row { display: flex; gap: 36px; }
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 36px; height: 100%; }
-.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; height: 100%; }
-code, .mono { font-family: var(--mono); }
-.codeblock { font: 500 24px/1.6 var(--mono); color: #cdd6f4; background: rgba(0,0,0,.5); border: 1px solid var(--mira-card-border); border-radius: 22px; padding: 30px 34px; white-space: pre; }
-.codeblock .ln { display: block; padding: 0 10px; margin: 0 -10px; border-radius: 8px; animation: lnGlow 7s ease-in-out infinite; animation-delay: calc(var(--k) * 1.1s); }
-.codeblock .k { color: var(--purple); } .codeblock .s { color: var(--green); } .codeblock .t { color: var(--cyan); } .codeblock .c { color: #6b7280; }
-@keyframes lnGlow { 0%, 12%, 100% { background: transparent; } 4%, 8% { background: rgba(255,144,77,.18); } }
-@keyframes pulse { 0%, 100% { opacity: .45; transform: scale(.9); } 50% { opacity: 1; transform: scale(1.15); } }
-@keyframes floaty { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-12px); } }
-@keyframes dash { to { stroke-dashoffset: -72; } }
-@keyframes blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
-@keyframes spin { to { transform: rotate(360deg); } }
-@keyframes shimmer { to { background-position: 200% center; } }
-
-/* ============ SVG DAS CENAS ============ */
-.stage svg { width: 100%; height: 100%; overflow: visible; }
-.slide svg circle { transform-box: fill-box; transform-origin: center; }
-.nd .nd-box { fill: #0e1119; stroke: var(--c); stroke-opacity: .5; stroke-width: 2.5; transition: all .35s; }
-.nd.on .nd-box { stroke-opacity: 1; fill: #181c27; filter: drop-shadow(0 0 16px var(--c)); }
-.nd-t { fill: #fff; font: 700 25px 'Inter', sans-serif; } .nd-s { fill: rgba(255,255,255,.55); font: 500 18px 'Inter', sans-serif; }
-.edge { fill: none; stroke: var(--c, #fff); stroke-opacity: .38; stroke-width: 2.5; stroke-dasharray: 8 10; animation: dash 3s linear infinite; }
-.edge.solid { stroke-dasharray: none; animation: none; }
-.tok { filter: drop-shadow(0 0 10px currentColor); }
-.cap { fill: #fff; font: 600 28px 'Inter', sans-serif; text-anchor: middle; }
-.bigmono { font: 700 44px var(--mono); }
-
-/* ============ NAVEGAÇÃO ============ */
-#bar { position: fixed; top: 0; left: 0; height: 4px; width: 0; z-index: 99; background: linear-gradient(90deg, var(--orange), var(--mira-accent-2), var(--cyan)); transition: width .4s; box-shadow: 0 0 14px var(--mira-glow-strong); }
-#nav { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); z-index: 99; display: flex; gap: 10px; align-items: center; opacity: .0; transition: opacity .3s; }
-body:hover #nav { opacity: .85; }
-#nav button { background: rgba(0,0,0,.6); border: 1px solid rgba(255,255,255,.2); color: #fff; width: 44px; height: 44px; border-radius: 50%; cursor: pointer; font-size: 20px; }
-#nav button:hover { border-color: var(--orange); color: var(--orange); }
-#nav span { font: 600 15px var(--mono); color: var(--soft); min-width: 70px; text-align: center; }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01s !important; animation-iteration-count: 1 !important; } }
-</style>
-</head>
-<body>
-<div id="bar"></div>
-<div id="nav"><button id="prev" aria-label="Anterior">‹</button><span id="cnt">1 / 25</span><button id="next" aria-label="Próximo">›</button></div>
-
-<!-- ============ 01 · CAPA ============ -->
-<section class="slide" data-scene="s01">
-  <svg viewBox="0 0 1920 1080" style="position:absolute;inset:0;z-index:1;pointer-events:none" preserveAspectRatio="xMidYMid slice">
-    <defs><linearGradient id="mt1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff904d" stop-opacity=".35"/><stop offset="1" stop-color="#ff904d" stop-opacity="0"/></linearGradient>
-    <linearGradient id="mt2" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#38bdf8" stop-opacity=".28"/><stop offset="1" stop-color="#38bdf8" stop-opacity="0"/></linearGradient></defs>
-    <g style="animation:floaty 9s ease-in-out infinite"><polygon points="0,1080 0,780 220,610 380,720 600,470 820,690 980,600 1220,820 1400,560 1640,760 1920,640 1920,1080" fill="url(#mt2)"/></g>
-    <g style="animation:floaty 7s ease-in-out infinite reverse"><polygon points="0,1080 0,900 260,760 470,860 720,690 950,840 1180,730 1460,900 1700,760 1920,860 1920,1080" fill="url(#mt1)"/></g>
-    <path id="route1" d="M120 930 C 520 640, 900 980, 1300 700 S 1700 520, 1800 380" fill="none" stroke="#fff" stroke-opacity=".35" stroke-width="3" stroke-dasharray="10 14" style="animation:dash 4s linear infinite"/>
-    <circle id="pin1" r="11" fill="#FF904D" style="filter:drop-shadow(0 0 14px #FF904D)"/>
-    <circle cx="1800" cy="380" r="9" fill="none" stroke="#FF904D" stroke-width="3" style="animation:pulse 2s ease-in-out infinite"/>
-    <text x="1760" y="345" fill="#fff" font-family="Inter" font-weight="700" font-size="26" text-anchor="end">Santiago</text>
-  </svg>
-  <div style="position:absolute;left:120px;top:200px;z-index:2;max-width:1500px">
-    <span class="kick reveal" style="--i:0"><i></i>Estudo de caso · IA generativa</span>
-    <h1 class="reveal" style="--i:1;font-size:118px;font-weight:800;letter-spacing:-.04em;line-height:1;margin-top:34px">Planejador Inteligente<br>de Viagens <span class="hl">com IA</span></h1>
-    <p class="reveal" style="--i:2;font-size:38px;color:var(--soft);margin-top:34px;max-width:1150px;line-height:1.35">Como uma IA monta um roteiro completo para Santiago <b style="color:#fff">sem inventar informações</b>?</p>
-  </div>
-</section>
-
-<!-- ============ 02 · DEMONSTRAÇÃO ============ -->
-<section class="slide" data-scene="s02">
-  <div class="hd"><span class="kick reveal" style="--i:0"><i></i>A demonstração</span>
-    <h2 class="reveal" style="--i:1">Primeiro, a <span class="hl">mágica</span>.</h2></div>
-  <div class="body"><div class="grid2" style="grid-template-columns:.85fr 1.15fr">
-    <div class="card reveal" style="--i:2;display:flex;flex-direction:column;gap:22px">
-      <span class="pill" style="align-self:flex-start">cliente · agora</span>
-      <div id="s02msg" style="font-size:32px;line-height:1.45;min-height:230px;color:#fff"></div>
-      <div id="s02dots" style="display:flex;gap:10px;opacity:0;transition:opacity .3s"><i style="width:14px;height:14px;border-radius:50%;background:var(--orange);animation:pulse 1s infinite"></i><i style="width:14px;height:14px;border-radius:50%;background:var(--orange);animation:pulse 1s .2s infinite"></i><i style="width:14px;height:14px;border-radius:50%;background:var(--orange);animation:pulse 1s .4s infinite"></i></div>
-      <p style="font:500 20px var(--mono);color:var(--softer);margin-top:auto">exemplo ilustrativo · dados fictícios</p>
-    </div>
-    <div style="display:flex;flex-direction:column;gap:20px" id="s02cards">
-      <div class="card r02" style="--c:var(--orange);display:flex;gap:26px;align-items:center;padding:26px 34px"><div class="ico"><i data-lucide="hotel"></i></div><div><h3 style="font-size:30px;margin:0">Hotel parceiro · Lastarria</h3><p style="font-size:23px">4 diárias com cupom da agência · <b>R$ 1.950</b></p></div></div>
-      <div class="card r02" style="--c:var(--purple);display:flex;gap:26px;align-items:center;padding:26px 34px"><div class="ico"><i data-lucide="wine"></i></div><div><h3 style="font-size:30px;margin:0">Passeios para casal</h3><p style="font-size:23px">Vinícola no Vale do Maipo + teleférico · <b>R$ 1.100</b></p></div></div>
-      <div class="card r02" style="--c:var(--cyan);display:flex;gap:26px;align-items:center;padding:26px 34px"><div class="ico"><i data-lucide="sun"></i></div><div><h3 style="font-size:30px;margin:0">Clima ajustado ao roteiro</h3><p style="font-size:23px">Dias 2 e 3 de sol → ar livre · dia 4 nublado → museu</p></div></div>
-      <div class="card r02" style="--c:var(--green);display:flex;gap:26px;align-items:center;padding:26px 34px"><div class="ico"><i data-lucide="wallet"></i></div><div><h3 style="font-size:30px;margin:0">Total: R$ 4.650</h3><p style="font-size:23px">Dentro do orçamento de R$ 5.000 · margem de <b>R$ 350</b></p></div></div>
-    </div></div></div>
-  <div class="foot"><span>Planejador de Viagens</span><span><b class="n"></b> / 25</span></div>
-</section>
-
-<!-- ============ 03 · ARQUITETURA GERAL ============ -->
-<section class="slide" data-scene="s03">
-  <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Como a IA respondeu?</span>
-    <h2 class="reveal" style="--i:1">Não é um modelo. É uma <span class="hl">equipe</span>.</h2></div>
-  <div class="body stage reveal" style="--i:2"><svg id="s03svg"></svg></div>
-  <div class="foot"><span>Visão geral da arquitetura</span><span><b class="n"></b> / 25</span></div>
-</section>
-
-<!-- ============ 04 · POR QUE AGENTIC RAG ============ -->
-<section class="slide" data-scene="s04">
-  <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Agentic RAG</span>
-    <h2 class="reveal" style="--i:1">Por que dividir o trabalho?</h2></div>
-  <div class="body"><div class="grid2">
-    <div class="card reveal" style="--i:2;--c:var(--red);border-color:rgba(255,93,108,.3)">
-      <div class="row" style="align-items:center;gap:22px"><div class="ico" style="--c:var(--red)"><i data-lucide="user-x"></i></div><h3 style="margin:0;color:#ffb3ba">Um LLM fazendo tudo</h3></div>
-      <ul style="margin-top:24px"><li>Lê o guia, confere o tempo e soma o orçamento <b>de uma vez</b></li><li>Faz conta de cabeça, e <b>conta é a parte que ele mais erra</b></li><li>Não sabe o que mudou hoje: clima, preço, feriado</li></ul>
-    </div>
-    <div class="card reveal" style="--i:3;--c:var(--green);border-color:rgba(53,208,127,.35)">
-      <div class="row" style="align-items:center;gap:22px"><div class="ico" style="--c:var(--green)"><i data-lucide="layers"></i></div><h3 style="margin:0;color:#a8f0c9">Nós especialistas</h3></div>
-      <ul style="margin-top:24px"><li><b>Nó Guia (RAG):</b> só consulta o guia curado da agência</li><li><b>Nó Clima (API):</b> só busca a previsão do tempo</li><li><b>Nó Financeiro (Cálculo):</b> só calcula com ferramenta matemática</li></ul>
-    </div></div></div>
-  <div class="foot"><span>Especialização</span><span><b class="n"></b> / 25</span></div>
-</section>
-
-<!-- ============ 05 · LANGGRAPH (ANIMADO) ============ -->
-<section class="slide" data-scene="s05">
-  <div class="hd"><span class="kick reveal" style="--i:0"><i></i>LangGraph · o fluxo</span>
-    <h2 class="reveal" style="--i:1">Um grafo que <span class="hl">se corrige</span>.</h2>
-    <p class="sub reveal" style="--i:2">Os <b>nós</b> executam, as <b>arestas</b> direcionam e o <b>estado</b> mantém o contexto compartilhado.</p></div>
-  <div class="body stage reveal" style="--i:3;top:410px"><svg id="s05svg"></svg></div>
-  <div class="foot"><span>Nós · Arestas · Estado</span><span><b class="n"></b> / 25</span></div>
-</section>
-
-<!-- ============ 06 · ONDE ENTRA O RAG ============ -->
-<section class="slide" data-scene="s06">
-  <div class="hd"><span class="kick reveal" style="--i:0"><i></i>De onde vêm os fatos?</span>
-    <h2 class="reveal" style="--i:1">Onde entra o <span class="hl">RAG</span>?</h2>
-    <p class="sub reveal" style="--i:2">Sem RAG o modelo responde de memória. Com RAG, ele <b>consulta o guia da agência</b> antes de responder.</p></div>
-  <div class="body"><div class="grid3" id="s06grid" style="align-items:center;height:auto;top:60px;position:relative">
-    <div class="card reveal s06c" style="--i:3;--c:var(--green)"><div class="ico" style="margin-bottom:24px;--c:var(--green)"><i data-lucide="search"></i></div><h3>1 · Recuperar</h3><p>Busca no guia só os <b>trechos</b> que importam para a pergunta.</p></div>
-    <div class="card reveal s06c" style="--i:4;--c:var(--cyan)"><div class="ico" style="margin-bottom:24px;--c:var(--cyan)"><i data-lucide="layers"></i></div><h3>2 · Acrescentar</h3><p>Coloca esses trechos <b>dentro do prompt</b> como base obrigatória.</p></div>
-    <div class="card reveal s06c" style="--i:5;--c:var(--orange)"><div class="ico" style="margin-bottom:24px"><i data-lucide="sparkles"></i></div><h3>3 · Gerar</h3><p>O modelo escreve a resposta <b>apoiado no que foi recuperado</b>.</p></div>
-  </div></div>
-  <style>.s06c{transition:transform .5s,border-color .5s,box-shadow .5s}.slide.active .s06c{animation:s06hl 6s infinite;animation-delay:calc((var(--i) - 3) * 2s)}@keyframes s06hl{0%,28%,100%{transform:none;border-color:var(--mira-card-border)}6%,22%{transform:translateY(-14px);border-color:var(--c);box-shadow:0 30px 70px color-mix(in srgb,var(--c) 30%,transparent)}}</style>
-  <div class="foot"><span>Retrieval-Augmented Generation</span><span><b class="n"></b> / 25</span></div>
-</section>
-
-<!-- ============ 07 · INGESTÃO (ANIMADO) ============ -->
-<section class="slide" data-scene="s07">
-  <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Como nasce o RAG</span>
-    <h2 class="reveal" style="--i:1">Do PDF ao <span class="hl">banco vetorial</span>.</h2></div>
-  <div class="body stage reveal" style="--i:2;top:300px"><svg id="s07svg"></svg></div>
-  <div class="foot"><span>Esteira de ingestão</span><span><b class="n"></b> / 25</span></div>
-</section>
-
-<!-- ============ 08 · CHUNKS x TOKENS ============ -->
-<section class="slide" data-scene="s08">
-  <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Duas escalas</span>
-    <h2 class="reveal" style="--i:1">Chunk não é <span class="hl">token</span>.</h2></div>
-  <div class="body"><div class="grid2">
-    <div class="card reveal" style="--i:2">
-      <h3>Chunk · escala macro</h3><p>Pedaços do documento, cortados antes da busca. Têm <b>tamanho e sobreposição</b> configuráveis.</p>
-      <div style="margin-top:34px;display:flex;flex-direction:column;gap:14px" id="s08chunks">
-        <div class="ck" style="--c:var(--orange)">Guia de Santiago · hospedagem</div>
-        <div class="ck" style="--c:var(--purple);margin-left:36px">Guia de Santiago · passeios de casal</div>
-        <div class="ck" style="--c:var(--cyan);margin-left:72px">Guia de Santiago · restaurantes</div>
-      </div>
-      <p style="margin-top:26px;font:500 21px var(--mono);color:var(--softer)">RecursiveCharacterTextSplitter</p>
-    </div>
-    <div class="card reveal" style="--i:3;--c:var(--cyan)">
-      <h3>Token · escala micro</h3><p>Pedaços de palavra que a rede neural lê. <b>É assim que o modelo enxerga o chunk.</b></p>
-      <div id="s08tok" style="margin-top:34px;display:flex;flex-wrap:wrap;gap:12px">
-        <span class="tk">San</span><span class="tk">tiago</span><span class="tk">tem</span><span class="tk">vin</span><span class="tk">ícolas</span><span class="tk">lin</span><span class="tk">das</span><span class="tk">.</span>
-      </div>
-      <p style="margin-top:26px;font:500 21px var(--mono);color:var(--softer)">exemplo ilustrativo de tokenização</p>
-    </div></div></div>
-  <style>.ck{font:600 26px 'Inter';padding:20px 26px;border-radius:16px;border:1px solid color-mix(in srgb,var(--c) 55%,transparent);background:color-mix(in srgb,var(--c) 12%,transparent)}.slide.active .ck{animation:ckf 6s ease-in-out infinite}.ck:nth-child(2){animation-delay:.6s!important}.ck:nth-child(3){animation-delay:1.2s!important}@keyframes ckf{0%,100%{transform:translateX(0)}50%{transform:translateX(22px)}}
-  .tk{font:600 28px var(--mono);padding:12px 18px;border-radius:12px;background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.4);color:#bfe9ff}.slide.active .tk{animation:tkh 4.8s infinite;animation-delay:calc(var(--n) * .5s)}@keyframes tkh{0%,16%,100%{background:rgba(56,189,248,.12);color:#bfe9ff}4%,10%{background:var(--cyan);color:#001018}}</style>
-  <div class="foot"><span>Chunking e tokenização</span><span><b class="n"></b> / 25</span></div>
-</section>
-
-<!-- ============ 09 · METADADOS + PYDANTIC ============ -->
-<section class="slide" data-scene="s09">
-  <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Sem trabalho manual</span>
-    <h2 class="reveal" style="--i:1">A IA etiqueta. O <span class="hl">Pydantic</span> fiscaliza.</h2></div>
-  <div class="body"><div class="grid2" style="grid-template-columns:1.1fr .9fr">
-    <div class="codeblock reveal" style="--i:2"><span class="c ln" style="--k:0"># o contrato que a IA precisa cumprir</span><span class="ln" style="--k:1"><span class="k">class</span> <span class="t">ChunkMeta</span>(BaseModel):</span><span class="ln" style="--k:2">    categoria: Literal[<span class="s">"hospedagem"</span>,</span><span class="ln" style="--k:2">                       <span class="s">"passeio"</span>, <span class="s">"restaurante"</span>]</span><span class="ln" style="--k:3">    perfil: list[<span class="s">"casal"</span> | <span class="s">"familia"</span>]</span><span class="ln" style="--k:4">    faixa_preco: Literal[<span class="s">"baixo"</span>, <span class="s">"medio"</span>, <span class="s">"alto"</span>]</span><span class="ln" style="--k:5">    clima: <span class="t">str</span></span></div>
-    <div style="display:flex;flex-direction:column;gap:24px">
-      <div class="card reveal" style="--i:3;--c:var(--purple)"><h3>1 · A IA lê o chunk</h3><p>Um modelo leve classifica o trecho e propõe as etiquetas.</p></div>
-      <div class="card reveal" style="--i:4;--c:var(--green)"><h3>2 · O Pydantic valida</h3><p>Campo errado ou faltando? <b>Rejeita</b> antes de entrar no banco.</p></div>
-      <div class="card reveal" style="--i:5"><h3>3 · A busca filtra</h3><p>“Somos um casal” → só chunks com <code style="color:var(--orange)">perfil: casal</code>.</p></div>
-    </div></div></div>
-  <div class="foot"><span>Metadados automáticos · exemplo do projeto</span><span><b class="n"></b> / 25</span></div>
-</section>
-
-<!-- ============ 10 · EMBEDDINGS ============ -->
-<section class="slide" data-scene="s10">
-  <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Embeddings</span>
-    <h2 class="reveal" style="--i:1">Significado vira <span class="hl">números</span>.</h2>
-    <p class="sub reveal" style="--i:2">Quem faz isso <b>não é o LLM</b>: é um modelo de embedding separado.</p></div>
-  <div class="body"><div class="row reveal" style="--i:3;align-items:center;justify-content:space-between;margin-top:20px">
-    <div class="card" style="width:520px;text-align:center"><span class="pill">texto</span><h3 style="margin-top:22px;font-size:38px">“Degustação de vinhos nos Andes”</h3></div>
-    <div style="text-align:center"><div class="ico" style="width:110px;height:110px;margin:0 auto;--c:var(--cyan);animation:floaty 3s ease-in-out infinite"><i data-lucide="cpu" style="width:56px;height:56px"></i></div><p style="font:600 22px var(--mono);color:var(--cyan);margin-top:16px">all-MiniLM-L6-v2</p></div>
-    <div class="card" style="width:640px;--c:var(--green)"><span class="pill" style="color:var(--green)">vetor</span><div id="s10vec" class="mono" style="font-size:34px;line-height:1.7;margin-top:18px;color:var(--green)">[ 0.48 −0.19 0.81 0.05 … ]</div></div>
-  </div>
-  <div class="row reveal" style="--i:4;margin-top:56px;gap:36px">
-    <div class="card" style="flex:1"><p>“vinícola” × “degustação de vinhos”</p><div class="bar"><i id="s10b1"></i></div><b class="mono" id="s10v1" style="font-size:30px;color:var(--green)">0.00</b></div>
-    <div class="card" style="flex:1"><p>“vinícola” × “parquinho infantil”</p><div class="bar"><i id="s10b2" style="--c:var(--red)"></i></div><b class="mono" id="s10v2" style="font-size:30px;color:var(--red)">0.00</b></div>
-  </div></div>
-  <style>.bar{height:16px;border-radius:99px;background:rgba(255,255,255,.08);margin:18px 0 12px;overflow:hidden}.bar i{display:block;height:100%;width:0;border-radius:99px;background:var(--c,var(--green));transition:width 1.4s cubic-bezier(.22,1,.36,1)}</style>
-  <div class="foot"><span>Similaridade ilustrativa · valores de exemplo</span><span><b class="n"></b> / 25</span></div>
-</section>
-
-<!-- ============ 11 · BANCO VETORIAL ============ -->
-<section class="slide" data-scene="s11">
-  <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Banco vetorial</span>
-    <h2 class="reveal" style="--i:1">Achar por <span class="hl">significado</span>.</h2></div>
-  <div class="body"><div class="grid2" style="grid-template-columns:1.15fr .85fr">
-    <div class="card stage reveal" style="--i:2;padding:10px"><svg id="s11svg" viewBox="0 0 900 560"></svg></div>
-    <div style="display:flex;flex-direction:column;gap:22px">
-      <div class="card reveal" style="--i:3;--c:var(--cyan)"><h3>Similaridade de cosseno</h3><p>Mede o <b>ângulo</b> entre vetores: 1 igual, 0 sem relação, −1 oposto.</p></div>
-      <div class="card reveal" style="--i:4;--c:var(--purple)"><h3>HNSW e LSH</h3><p>Índices que evitam comparar com <b>todos</b> os vetores.</p></div>
-      <div class="card reveal" style="--i:5;--c:var(--green)"><h3>ChromaDB · FAISS · Qdrant</h3><p>Bancos que guardam e buscam vetores.</p></div>
-    </div></div></div>
-  <div class="foot"><span>Busca semântica</span><span><b class="n"></b> / 25</span></div>
-</section>
-
-<!-- ============ 12 · RE-RANKING ============ -->
-<section class="slide" data-scene="s12">
-  <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Precisão</span>
-    <h2 class="reveal" style="--i:1">A segunda opinião: <span class="hl">Re-Ranking</span>.</h2></div>
-  <div class="body"><div class="grid2" style="grid-template-columns:1.1fr .9fr">
-    <div class="card reveal" style="--i:2;position:relative;padding:30px 36px"><div id="s12list" style="position:relative;height:520px;margin-top:44px"></div><div id="s12lbl" class="mono" style="position:absolute;right:36px;top:24px;font-size:22px;color:var(--softer)"></div></div>
-    <div style="display:flex;flex-direction:column;gap:22px">
-      <div class="card reveal" style="--i:3;--c:var(--cyan)"><h3>Busca rápida</h3><p>O <b>bi-encoder</b> traz muitos candidatos, alguns só parecidos nas palavras.</p></div>
-      <div class="card reveal" style="--i:4"><h3>Reavaliação</h3><p>O <b>cross-encoder</b> (BERT, RoBERTa, T5) lê pergunta e trecho <b>juntos</b>, como um par.</p></div>
-      <div class="card reveal" style="--i:5;--c:var(--green)"><h3>Só os melhores</h3><p>Poucos trechos chegam ao LLM, e são os mais relevantes.</p></div>
-    </div></div></div>
-  <div class="foot"><span>Re-ranking · exemplo ilustrativo</span><span><b class="n"></b> / 25</span></div>
-</section>
-
-<!-- ============ 13 · ÁRVORE DO RAG (ANIMADO) ============ -->
-<section class="slide" data-scene="s13">
-  <div class="hd"><span class="kick reveal" style="--i:0"><i></i>A família RAG</span>
-    <h2 class="reveal" style="--i:1">Um tronco, <span class="hl">muitos ramos</span>.</h2></div>
-  <div class="body stage reveal" style="--i:2;top:290px"><svg id="s13svg"></svg></div>
-  <div class="foot"><span>Evolução do RAG</span><span><b class="n"></b> / 25</span></div>
-</section>
-
-<!-- ============ 14 · MEMÓRIA ============ -->
-<section class="slide" data-scene="s14">
-  <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Memória da conversa</span>
-    <h2 class="reveal" style="--i:1">A lousa que <span class="hl">não estoura</span>.</h2></div>
-  <div class="body"><div class="grid2">
-    <div class="card reveal" style="--i:2;--c:var(--red)"><h3>ConversationBufferMemory</h3><p>Guarda a <b>conversa inteira</b>. O custo cresce a cada mensagem.</p><div id="s14a" class="mem"></div><p class="mono" id="s14ca" style="font-size:24px;margin-top:16px;color:var(--red)"></p></div>
-    <div class="card reveal" style="--i:3;--c:var(--green);border-color:rgba(53,208,127,.35)"><h3>BufferWindowMemory <span class="pill" style="color:var(--green);font-size:18px">nossa escolha</span></h3><p>Lembra só as <b>últimas K</b> interações, como uma lousa pequena.</p><div id="s14b" class="mem"></div><p class="mono" id="s14cb" style="font-size:24px;margin-top:16px;color:var(--green)"></p></div></div></div>
-  <style>.mem{margin-top:22px;display:flex;flex-direction:column;gap:10px;height:330px;overflow:hidden;justify-content:flex-end}.mem div{font:500 22px 'Inter';padding:12px 18px;border-radius:14px;background:rgba(255,255,255,.07);color:#fff;animation:msgin .5s ease}@keyframes msgin{from{opacity:0;transform:translateY(16px)}}</style>
-  <div class="foot"><span>Memória de curto prazo</span><span><b class="n"></b> / 25</span></div>
-</section>
-
-<!-- ============ 15 · FLUXO COMPLETO (ANIMADO) ============ -->
-<section class="slide" data-scene="s15">
-  <div class="hd"><span class="kick reveal" style="--i:0"><i></i>A máquina montada</span>
-    <h2 class="reveal" style="--i:1">O fluxo <span class="hl">completo</span>.</h2></div>
-  <div class="body stage reveal" style="--i:2;top:290px"><svg id="s15svg"></svg></div>
-  <div class="foot"><span>De ponta a ponta</span><span><b class="n"></b> / 25</span></div>
-</section>
-
-<!-- ============ 16 · MCP ============ -->
-<section class="slide" data-scene="s16">
-  <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Model Context Protocol</span>
-    <h2 class="reveal" style="--i:1">Uma tomada <span class="hl">universal</span> para ferramentas.</h2></div>
-  <div class="body"><div class="stage reveal" style="--i:2;height:240px"><svg id="s16svg"></svg></div>
-    <div class="grid3" style="height:auto;margin-top:36px">
-      <div class="card reveal" style="--i:3;--c:var(--orange)"><h3>Tools</h3><p>Ações: consultar o clima, calcular.</p></div>
-      <div class="card reveal" style="--i:4;--c:var(--cyan)"><h3>Resources</h3><p>Dados: o guia de Santiago.</p></div>
-      <div class="card reveal" style="--i:5;--c:var(--purple)"><h3>Prompts</h3><p>Instruções prontas e reutilizáveis.</p></div>
-    </div></div>
-  <div class="foot"><span>Host · Cliente · Servidor · STDIO · HTTP/SSE</span><span><b class="n"></b> / 25</span></div>
-</section>
-
-<!-- ============ 17 · PRODUÇÃO ============ -->
-<section class="slide" data-scene="s17">
-  <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Em produção</span>
-    <h2 class="reveal" style="--i:1">Confiável é o que <span class="hl">dá para auditar</span>.</h2></div>
-  <div class="body"><div class="grid2">
-    <div class="card reveal" style="--i:2"><div class="ico" style="margin-bottom:22px"><i data-lucide="shield-check"></i></div><h3>Guardrails</h3><ul><li>Barreira na <b>entrada</b>: pedido fora do escopo</li><li>Barreira na <b>saída</b>: o roteiro respeita o orçamento?</li><li>Ações perigosas ficam <b>bloqueadas</b></li></ul></div>
-    <div class="card reveal" style="--i:3;--c:var(--cyan)"><div class="ico" style="margin-bottom:22px;--c:var(--cyan)"><i data-lucide="activity"></i></div><h3>Observabilidade</h3><ul><li><b>LangSmith</b>: rastro de cada nó do grafo</li><li><b>Pydantic Logfire</b>: tempo, erros e custo</li><li><b>SHAP / LIME</b>: por que a IA recomendou isso</li></ul>
-      <div id="s17tr" style="margin-top:26px;display:flex;flex-direction:column;gap:8px"><i></i><i></i><i></i><i></i></div></div></div></div>
-  <style>#s17tr i{display:block;height:12px;border-radius:9px;background:var(--cyan);opacity:.75;width:0;animation:tr 5s ease-in-out infinite}#s17tr i:nth-child(2){animation-delay:.3s;background:var(--orange)}#s17tr i:nth-child(3){animation-delay:.6s;background:var(--green)}#s17tr i:nth-child(4){animation-delay:.9s;background:var(--purple)}@keyframes tr{0%{width:0}35%,80%{width:var(--w,70%)}100%{width:0}}#s17tr i:nth-child(1){--w:90%}#s17tr i:nth-child(2){--w:60%}#s17tr i:nth-child(3){--w:75%}#s17tr i:nth-child(4){--w:45%}</style>
-  <div class="foot"><span>Governança</span><span><b class="n"></b> / 25</span></div>
-</section>
-
-<!-- ============ 18 · DIVISOR: NOS BASTIDORES ============ -->
-<section class="slide" data-scene="s19div">
-  <div style="position:absolute;left:120px;right:120px;top:170px;z-index:2">
-    <span class="kick reveal" style="--i:0"><i></i>Apêndice técnico · fora do case</span>
-    <h1 class="reveal" style="--i:1;font-size:112px;font-weight:800;letter-spacing:-.04em;line-height:1.02;margin-top:34px">Nos <span class="hl">bastidores</span>.</h1>
-    <p class="sub reveal" style="--i:2;font-size:34px;margin-top:26px;max-width:1200px">Aprofundamento nos fundamentos de engenharia que sustentam sistemas de IA em produção.</p>
-    <div class="grid5ap reveal" style="--i:3;margin-top:78px">
-      <div class="card ap-pill" style="--c:var(--cyan);--d:0s"><div class="ico" style="--c:var(--cyan)"><i data-lucide="sliders"></i></div><h3>Fine-Tuning</h3><p>LoRA & QLoRA</p></div>
-      <div class="card ap-pill" style="--c:var(--orange);--d:1.2s"><div class="ico" style="--c:var(--orange)"><i data-lucide="users"></i></div><h3>Agentes</h3><p>Frameworks</p></div>
-      <div class="card ap-pill" style="--c:var(--green);--d:2.4s"><div class="ico" style="--c:var(--green)"><i data-lucide="database"></i></div><h3>RAG</h3><p>Eficiência & métricas</p></div>
-      <div class="card ap-pill" style="--c:var(--purple);--d:3.6s"><div class="ico" style="--c:var(--purple)"><i data-lucide="brain"></i></div><h3>Raciocínio</h3><p>Lógica, CoT & ReAct</p></div>
-      <div class="card ap-pill" style="--c:var(--mira-accent-2);--d:4.8s"><div class="ico" style="--c:var(--mira-accent-2)"><i data-lucide="shield-check"></i></div><h3>Governança</h3><p>Observabilidade & Guardrails</p></div>
-    </div>
-  </div>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Planejador Inteligente de Viagens — IA Generativa, RAG e Agentes</title>
+  <script src="assets/vendor/lucide.js"></script>
+  <link href="assets/vendor/inter.css" rel="stylesheet">
   <style>
-    .grid5ap{display:grid;grid-template-columns:repeat(5,1fr);gap:24px}
-    .ap-pill{padding:30px 26px;display:flex;flex-direction:column;gap:16px;align-items:flex-start;transition:transform .5s,border-color .5s,box-shadow .5s}
-    .ap-pill h3{font-size:30px;margin:0}
-    .ap-pill p{font-size:22px;margin:0}
-    .slide.active .ap-pill{animation:apCycle 6s ease-in-out infinite;animation-delay:var(--d)}
-    @keyframes apCycle{0%,24%,100%{transform:none;border-color:var(--mira-card-border)}6%,18%{transform:translateY(-14px);border-color:var(--c);box-shadow:0 26px 60px color-mix(in srgb,var(--c) 28%,transparent)}}
+    /* @MIRA:THEME:START */
+    /* MIRA THEME: mira-dark (padrão) */
+    :root {
+      --mira-primary: #FF904D;
+      --mira-crop: #35D07F;
+      --mira-bg: #000000;
+      --mira-text: #ffffff;
+      --mira-text-soft: rgba(255, 255, 255, 0.70);
+      --mira-text-softer: rgba(255, 255, 255, 0.50);
+      --mira-card-bg: rgba(255, 255, 255, 0.05);
+      --mira-card-border: rgba(255, 255, 255, 0.10);
+      --mira-glow-soft: rgba(255, 144, 77, 0.15);
+      --mira-glow-strong: rgba(255, 144, 77, 0.25);
+      --mira-icon-bg: rgba(255, 144, 77, 0.15);
+      --mira-icon-border: rgba(255, 144, 77, 0.30);
+      --mira-pill-bg: rgba(255, 255, 255, 0.04);
+      --mira-pill-border: rgba(255, 255, 255, 0.08);
+      --mira-stage-glow: rgba(255, 144, 77, 0.06);
+      --mira-accent-2: #FFC766;
+    }
+
+    /* @MIRA:THEME:END */
+    :root {
+      --cyan: #38bdf8;
+      --purple: #c084fc;
+      --red: #ff5d6c;
+      --green: var(--mira-crop);
+      --orange: var(--mira-primary);
+      --ink: var(--mira-text);
+      --soft: var(--mira-text-soft);
+      --softer: var(--mira-text-softer);
+      --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html,
+    body {
+      height: 100%;
+      background: #000;
+      overflow: hidden;
+      font-family: 'Inter', system-ui, sans-serif;
+      color: var(--ink);
+    }
+
+    /* ============ PALCO 16:9 FIXO ============ */
+    .slide {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 1920px;
+      height: 1080px;
+      margin: -540px 0 0 -960px;
+      transform: scale(var(--s, 1));
+      transform-origin: center;
+      background: #07080d;
+      overflow: hidden;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .5s ease;
+    }
+
+    .slide.active {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .slide::before {
+      content: "";
+      position: absolute;
+      width: 2600px;
+      height: 1600px;
+      left: -340px;
+      top: -260px;
+      pointer-events: none;
+      background:
+        radial-gradient(520px 420px at 18% 22%, rgba(255, 144, 77, .20), transparent 70%),
+        radial-gradient(560px 460px at 82% 78%, rgba(56, 189, 248, .14), transparent 70%),
+        radial-gradient(460px 380px at 70% 18%, rgba(192, 132, 252, .12), transparent 70%);
+      animation: drift 26s ease-in-out infinite alternate;
+    }
+
+    .slide::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: .5;
+      background-image: radial-gradient(rgba(255, 255, 255, .07) 1.2px, transparent 1.4px);
+      background-size: 48px 48px;
+    }
+
+    @keyframes drift {
+      from {
+        transform: translate(0, 0) scale(1);
+      }
+
+      to {
+        transform: translate(-120px, 60px) scale(1.08);
+      }
+    }
+
+    .hd {
+      position: absolute;
+      left: 120px;
+      right: 120px;
+      top: 78px;
+      z-index: 2;
+    }
+
+    .kick {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      font: 600 20px var(--mono);
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--orange);
+      padding: 10px 22px;
+      border-radius: 999px;
+      background: var(--mira-icon-bg);
+      border: 1px solid var(--mira-icon-border);
+    }
+
+    .kick i {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--orange);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    h2 {
+      font-size: 78px;
+      font-weight: 800;
+      letter-spacing: -.035em;
+      line-height: 1.04;
+      margin-top: 26px;
+      max-width: 1500px;
+    }
+
+    h2 .hl,
+    h1 .hl {
+      background: linear-gradient(100deg, var(--orange), var(--mira-accent-2) 55%, #fff);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .sub {
+      font-size: 30px;
+      color: var(--soft);
+      margin-top: 16px;
+      max-width: 1300px;
+      line-height: 1.35;
+    }
+
+    .body {
+      position: absolute;
+      left: 120px;
+      right: 120px;
+      top: 330px;
+      bottom: 100px;
+      z-index: 2;
+    }
+
+    .foot {
+      position: absolute;
+      left: 120px;
+      right: 120px;
+      bottom: 36px;
+      display: flex;
+      justify-content: space-between;
+      z-index: 2;
+      font: 500 18px var(--mono);
+      letter-spacing: .14em;
+      color: var(--softer);
+      text-transform: uppercase;
+    }
+
+    .foot b {
+      color: var(--orange);
+      font-weight: 600;
+    }
+
+    /* ============ ENTRADA COREOGRAFADA ============ */
+    .reveal {
+      opacity: 0;
+      transform: translateY(34px);
+      transition: opacity .8s cubic-bezier(.22, 1, .36, 1), transform .8s cubic-bezier(.22, 1, .36, 1);
+    }
+
+    .slide.active .reveal {
+      opacity: 1;
+      transform: none;
+      transition-delay: calc(var(--i, 0) * .14s + .15s);
+    }
+
+    .slide:not(.active) .reveal {
+      transition: none;
+    }
+
+    .reveal.pop {
+      transform: scale(.88);
+    }
+
+    .slide.active .reveal.pop {
+      transform: scale(1);
+    }
+
+    /* ============ COMPONENTES ============ */
+    .card {
+      background: var(--mira-card-bg);
+      border: 1px solid var(--mira-card-border);
+      border-radius: 28px;
+      padding: 38px 42px;
+      backdrop-filter: blur(14px);
+      box-shadow: 0 24px 60px rgba(0, 0, 0, .45);
+    }
+
+    .card h3 {
+      font-size: 36px;
+      font-weight: 700;
+      letter-spacing: -.02em;
+      margin-bottom: 14px;
+    }
+
+    .card p,
+    .card li {
+      font-size: 26px;
+      line-height: 1.45;
+      color: var(--soft);
+    }
+
+    .card li {
+      list-style: none;
+      position: relative;
+      padding-left: 28px;
+      margin-top: 14px;
+    }
+
+    .card li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 12px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: var(--c, var(--orange));
+      box-shadow: 0 0 14px var(--c, var(--orange));
+    }
+
+    .card b,
+    .sub b {
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .ico {
+      width: 72px;
+      height: 72px;
+      border-radius: 22px;
+      display: grid;
+      place-items: center;
+      flex: none;
+      background: color-mix(in srgb, var(--c, var(--orange)) 16%, transparent);
+      border: 1px solid color-mix(in srgb, var(--c, var(--orange)) 40%, transparent);
+    }
+
+    .ico svg {
+      width: 36px;
+      height: 36px;
+      color: var(--c, var(--orange));
+    }
+
+    .pill {
+      display: inline-block;
+      font: 600 20px var(--mono);
+      padding: 8px 18px;
+      border-radius: 999px;
+      background: var(--mira-pill-bg);
+      border: 1px solid var(--mira-pill-border);
+      color: var(--soft);
+    }
+
+    .row {
+      display: flex;
+      gap: 36px;
+    }
+
+    .grid2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 36px;
+      height: 100%;
+    }
+
+    .grid3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 32px;
+      height: 100%;
+    }
+
+    code,
+    .mono {
+      font-family: var(--mono);
+    }
+
+    .codeblock {
+      font: 500 24px/1.6 var(--mono);
+      color: #cdd6f4;
+      background: rgba(0, 0, 0, .5);
+      border: 1px solid var(--mira-card-border);
+      border-radius: 22px;
+      padding: 30px 34px;
+      white-space: pre;
+    }
+
+    .codeblock .ln {
+      display: block;
+      padding: 0 10px;
+      margin: 0 -10px;
+      border-radius: 8px;
+      animation: lnGlow 7s ease-in-out infinite;
+      animation-delay: calc(var(--k) * 1.1s);
+    }
+
+    .codeblock .k {
+      color: var(--purple);
+    }
+
+    .codeblock .s {
+      color: var(--green);
+    }
+
+    .codeblock .t {
+      color: var(--cyan);
+    }
+
+    .codeblock .c {
+      color: #6b7280;
+    }
+
+    @keyframes lnGlow {
+
+      0%,
+      12%,
+      100% {
+        background: transparent;
+      }
+
+      4%,
+      8% {
+        background: rgba(255, 144, 77, .18);
+      }
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: .45;
+        transform: scale(.9);
+      }
+
+      50% {
+        opacity: 1;
+        transform: scale(1.15);
+      }
+    }
+
+    @keyframes floaty {
+
+      0%,
+      100% {
+        transform: translateY(0);
+      }
+
+      50% {
+        transform: translateY(-12px);
+      }
+    }
+
+    @keyframes dash {
+      to {
+        stroke-dashoffset: -72;
+      }
+    }
+
+    @keyframes blink {
+
+      0%,
+      49% {
+        opacity: 1;
+      }
+
+      50%,
+      100% {
+        opacity: 0;
+      }
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes shimmer {
+      to {
+        background-position: 200% center;
+      }
+    }
+
+    /* ============ SVG DAS CENAS ============ */
+    .stage svg {
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    .slide svg circle {
+      transform-box: fill-box;
+      transform-origin: center;
+    }
+
+    .nd .nd-box {
+      fill: #0e1119;
+      stroke: var(--c);
+      stroke-opacity: .5;
+      stroke-width: 2.5;
+      transition: all .35s;
+    }
+
+    .nd.on .nd-box {
+      stroke-opacity: 1;
+      fill: #181c27;
+      filter: drop-shadow(0 0 16px var(--c));
+    }
+
+    .nd-t {
+      fill: #fff;
+      font: 700 25px 'Inter', sans-serif;
+    }
+
+    .nd-s {
+      fill: rgba(255, 255, 255, .55);
+      font: 500 18px 'Inter', sans-serif;
+    }
+
+    .edge {
+      fill: none;
+      stroke: var(--c, #fff);
+      stroke-opacity: .38;
+      stroke-width: 2.5;
+      stroke-dasharray: 8 10;
+      animation: dash 3s linear infinite;
+    }
+
+    .edge.solid {
+      stroke-dasharray: none;
+      animation: none;
+    }
+
+    .tok {
+      filter: drop-shadow(0 0 10px currentColor);
+    }
+
+    .cap {
+      fill: #fff;
+      font: 600 28px 'Inter', sans-serif;
+      text-anchor: middle;
+    }
+
+    .bigmono {
+      font: 700 44px var(--mono);
+    }
+
+    /* ============ NAVEGAÇÃO ============ */
+    #bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 4px;
+      width: 0;
+      z-index: 99;
+      background: linear-gradient(90deg, var(--orange), var(--mira-accent-2), var(--cyan));
+      transition: width .4s;
+      box-shadow: 0 0 14px var(--mira-glow-strong);
+    }
+
+    #nav {
+      position: fixed;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 99;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      opacity: .0;
+      transition: opacity .3s;
+    }
+
+    body:hover #nav {
+      opacity: .85;
+    }
+
+    #nav button {
+      background: rgba(0, 0, 0, .6);
+      border: 1px solid rgba(255, 255, 255, .2);
+      color: #fff;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 20px;
+    }
+
+    #nav button:hover {
+      border-color: var(--orange);
+      color: var(--orange);
+    }
+
+    #nav span {
+      font: 600 15px var(--mono);
+      color: var(--soft);
+      min-width: 70px;
+      text-align: center;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+
+      *,
+      *::before,
+      *::after {
+        animation-duration: .01s !important;
+        animation-iteration-count: 1 !important;
+      }
+    }
   </style>
-  <div class="foot"><span>Aprofundamento técnico</span><span><b class="n"></b> / 25</span></div>
-</section>
+</head>
 
-<!-- ============ 19 · FINE-TUNING, LORA E QLORA ============ -->
-<section class="slide" data-scene="s19ft">
-  <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Treinamento e adaptação</span>
-    <h2 class="reveal" style="--i:1">Quando RAG não basta: <span class="hl">ensinar o modelo</span>.</h2></div>
-  <div class="body"><div class="grid3" style="align-items:stretch">
-    <div class="card reveal s06c" style="--i:2;--c:var(--cyan)">
-      <div class="ico" style="margin-bottom:22px;--c:var(--cyan)"><i data-lucide="graduation-cap"></i></div>
-      <h3>Pre-training × Fine-tuning</h3>
-      <ul>
-        <li><b>Pre-training</b> → modelo generalista</li>
-        <li><b>Fine-tuning</b> → dados do domínio (<i>domain-specific dataset</i>)</li>
-      </ul>
-    </div>
-    <div class="card reveal s06c" style="--i:3;--c:var(--red)">
-      <div class="ico" style="margin-bottom:22px;--c:var(--red)"><i data-lucide="alert-triangle"></i></div>
-      <h3>Riscos</h3>
-      <ul>
-        <li><b>Esquecimento catastrófico</b> → perde o que sabia</li>
-        <li><b>Overfitting</b> → decora, não generaliza</li>
-      </ul>
-    </div>
-    <div class="card reveal s06c" style="--i:4;--c:var(--green)">
-      <div class="ico" style="margin-bottom:22px;--c:var(--green)"><i data-lucide="cpu"></i></div>
-      <h3>PEFT · LoRA · QLoRA</h3>
-      <ul>
-        <li><b>LoRA</b> → base congelada + pequenas matrizes treináveis</li>
-        <li><b>QLoRA</b> → base quantizada em 4 bits + adaptadores LoRA</li>
-        <li>Menos memória e menos recursos</li>
-      </ul>
-    </div>
-  </div></div>
-  <div class="foot"><span>Fine-Tuning · LoRA · QLoRA</span><span><b class="n"></b> / 25</span></div>
-</section>
+<body>
+  <div id="bar"></div>
+  <div id="nav"><button id="prev" aria-label="Anterior">‹</button><span id="cnt">1 / 25</span><button id="next"
+      aria-label="Próximo">›</button></div>
 
-<!-- ============ 20 · FRAMEWORKS DE AGENTES ============ -->
-<section class="slide" data-scene="s20fw">
-  <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Frameworks de agentes</span>
-    <h2 class="reveal" style="--i:1">Mesmo problema, <span class="hl">três filosofias</span>.</h2></div>
-  <div class="body"><div class="grid3" style="align-items:stretch">
-    <div class="card reveal s06c" style="--i:2;--c:var(--orange);border-color:var(--mira-icon-border)">
-      <div class="ico" style="margin-bottom:22px;--c:var(--orange)"><i data-lucide="git-branch"></i></div>
-      <h3>LangGraph <span class="pill" style="color:var(--orange);font-size:17px">nosso projeto</span></h3>
-      <ul>
-        <li><b>Grafo de estados</b> com nós e arestas</li>
-        <li><b>Ciclos</b> e fluxos condicionais</li>
-        <li><b>Controle total</b> da execução</li>
-      </ul>
+  <!-- ============ 01 · CAPA ============ -->
+  <section class="slide" data-scene="s01">
+    <svg viewBox="0 0 1920 1080" style="position:absolute;inset:0;z-index:1;pointer-events:none"
+      preserveAspectRatio="xMidYMid slice">
+      <defs>
+        <linearGradient id="mt1" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#ff904d" stop-opacity=".35" />
+          <stop offset="1" stop-color="#ff904d" stop-opacity="0" />
+        </linearGradient>
+        <linearGradient id="mt2" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stop-color="#38bdf8" stop-opacity=".28" />
+          <stop offset="1" stop-color="#38bdf8" stop-opacity="0" />
+        </linearGradient>
+      </defs>
+      <g style="animation:floaty 9s ease-in-out infinite">
+        <polygon
+          points="0,1080 0,780 220,610 380,720 600,470 820,690 980,600 1220,820 1400,560 1640,760 1920,640 1920,1080"
+          fill="url(#mt2)" />
+      </g>
+      <g style="animation:floaty 7s ease-in-out infinite reverse">
+        <polygon points="0,1080 0,900 260,760 470,860 720,690 950,840 1180,730 1460,900 1700,760 1920,860 1920,1080"
+          fill="url(#mt1)" />
+      </g>
+      <path id="route1" d="M120 930 C 520 640, 900 980, 1300 700 S 1700 520, 1800 380" fill="none" stroke="#fff"
+        stroke-opacity=".35" stroke-width="3" stroke-dasharray="10 14" style="animation:dash 4s linear infinite" />
+      <circle id="pin1" r="11" fill="#FF904D" style="filter:drop-shadow(0 0 14px #FF904D)" />
+      <circle cx="1800" cy="380" r="9" fill="none" stroke="#FF904D" stroke-width="3"
+        style="animation:pulse 2s ease-in-out infinite" />
+      <text x="1760" y="345" fill="#fff" font-family="Inter" font-weight="700" font-size="26"
+        text-anchor="end">Santiago</text>
+    </svg>
+    <div style="position:absolute;left:120px;top:200px;z-index:2;max-width:1500px">
+      <span class="kick reveal" style="--i:0"><i></i>Estudo de caso · IA generativa</span>
+      <h1 class="reveal"
+        style="--i:1;font-size:118px;font-weight:800;letter-spacing:-.04em;line-height:1;margin-top:34px">Planejador
+        Inteligente<br>de Viagens <span class="hl">com IA</span></h1>
+      <p class="reveal"
+        style="--i:2;font-size:38px;color:var(--soft);margin-top:34px;max-width:1150px;line-height:1.35">Como uma IA
+        monta um roteiro completo para Santiago <b style="color:#fff">sem inventar informações</b>?</p>
     </div>
-    <div class="card reveal s06c" style="--i:3;--c:var(--purple)">
-      <div class="ico" style="margin-bottom:22px;--c:var(--purple)"><i data-lucide="users"></i></div>
-      <h3>CrewAI</h3>
-      <ul>
-        <li><b>Equipe de papéis</b> bem definidos</li>
-        <li><b>Role · Goal · Backstory</b></li>
-        <li><b>Delegação</b> de tarefas entre agentes</li>
-      </ul>
-    </div>
-    <div class="card reveal s06c" style="--i:4;--c:var(--cyan)">
-      <div class="ico" style="margin-bottom:22px;--c:var(--cyan)"><i data-lucide="messages-square"></i></div>
-      <h3>AutoGen</h3>
-      <ul>
-        <li><b>Conversação</b> dinâmica</li>
-        <li><b>Colaboração</b> entre agentes</li>
-        <li>Orientado a diálogo multiagente</li>
-      </ul>
-    </div>
-  </div></div>
-  <div class="foot"><span>LangGraph · CrewAI · AutoGen</span><span><b class="n"></b> / 25</span></div>
-</section>
+  </section>
 
-<!-- ============ 21 · RAG EFICIENTE E COMO MEDIR ============ -->
-<section class="slide" data-scene="s21rag">
-  <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Eficiência e avaliação</span>
-    <h2 class="reveal" style="--i:1">Banco vetorial <span class="hl">enxuto</span> e como medir.</h2></div>
-  <div class="body"><div class="grid2">
-    <div class="card reveal" style="--i:2;--c:var(--cyan);display:flex;flex-direction:column;justify-content:space-between">
-      <div>
-        <div class="row" style="align-items:center;gap:22px;margin-bottom:14px"><div class="ico" style="--c:var(--cyan)"><i data-lucide="database"></i></div><h3 style="margin:0">Banco vetorial enxuto</h3></div>
-        <ul>
-          <li>Vetoriza <b>resumos ou fragmentos relevantes</b></li>
-          <li>Conteúdo original em <b>banco relacional/documental</b>, recuperado por <b>Document ID</b></li>
-        </ul>
-      </div>
-      <div style="display:flex;align-items:center;gap:18px;padding:22px 26px;border-radius:18px;background:var(--mira-pill-bg);border:1px solid var(--mira-card-border)">
-        <span class="pill" style="color:var(--cyan)">Vetor leve</span>
-        <span style="flex:1;height:3px;background:linear-gradient(90deg,var(--cyan),var(--orange));position:relative;overflow:hidden"><i style="position:absolute;inset:0;background:var(--ink);width:35%;animation:idFlow 2.4s ease-in-out infinite"></i></span>
-        <span class="mono" style="font-size:20px;color:var(--orange);font-weight:700">Document ID</span>
-        <span class="pill" style="color:var(--green)">Texto original</span>
-      </div>
+  <!-- ============ 02 · DEMONSTRAÇÃO ============ -->
+  <section class="slide" data-scene="s02">
+    <div class="hd"><span class="kick reveal" style="--i:0"><i></i>A demonstração</span>
+      <h2 class="reveal" style="--i:1">Primeiro, a <span class="hl">mágica</span>.</h2>
     </div>
-    <div class="card reveal" style="--i:3;--c:var(--green);display:flex;flex-direction:column;justify-content:space-between">
-      <div>
-        <div class="row" style="align-items:center;gap:22px;margin-bottom:14px"><div class="ico" style="--c:var(--green)"><i data-lucide="bar-chart-3"></i></div><h3 style="margin:0">Como medir o RAG</h3></div>
-        <ul>
-          <li><b>Hit Rate</b> → achou o trecho relevante?</li>
-          <li><b>MRR</b> (<i>Mean Reciprocal Rank</i>) → em que posição ele apareceu?</li>
-        </ul>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:12px">
-        <div style="display:flex;align-items:center;gap:16px;padding:14px 20px;border-radius:14px;border:1px solid var(--green);background:color-mix(in srgb,var(--green) 14%,transparent);animation:mrrPulse 3s ease-in-out infinite"><b class="mono" style="color:var(--green);font-size:22px">#1</b><span style="font-size:22px;color:var(--ink);flex:1">Trecho relevante no topo</span><span class="mono" style="color:var(--green);font-size:22px;font-weight:700">MRR = 1.0</span></div>
-        <div style="display:flex;align-items:center;gap:16px;padding:12px 20px;border-radius:14px;background:var(--mira-pill-bg);opacity:.55"><b class="mono" style="font-size:20px">#2</b><span style="font-size:20px;color:var(--soft);flex:1">Candidato secundário</span><span class="mono" style="font-size:20px">0.50</span></div>
+    <div class="body">
+      <div class="grid2" style="grid-template-columns:.85fr 1.15fr">
+        <div class="card reveal" style="--i:2;display:flex;flex-direction:column;gap:22px">
+          <span class="pill" style="align-self:flex-start">cliente · agora</span>
+          <div id="s02msg" style="font-size:32px;line-height:1.45;min-height:230px;color:#fff"></div>
+          <div id="s02dots" style="display:flex;gap:10px;opacity:0;transition:opacity .3s"><i
+              style="width:14px;height:14px;border-radius:50%;background:var(--orange);animation:pulse 1s infinite"></i><i
+              style="width:14px;height:14px;border-radius:50%;background:var(--orange);animation:pulse 1s .2s infinite"></i><i
+              style="width:14px;height:14px;border-radius:50%;background:var(--orange);animation:pulse 1s .4s infinite"></i>
+          </div>
+          <p style="font:500 20px var(--mono);color:var(--softer);margin-top:auto">exemplo ilustrativo · dados fictícios
+          </p>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:20px" id="s02cards">
+          <div class="card r02" style="--c:var(--orange);display:flex;gap:26px;align-items:center;padding:26px 34px">
+            <div class="ico"><i data-lucide="hotel"></i></div>
+            <div>
+              <h3 style="font-size:30px;margin:0">Hotel parceiro · Lastarria</h3>
+              <p style="font-size:23px">4 diárias com cupom da agência · <b>R$ 1.950</b></p>
+            </div>
+          </div>
+          <div class="card r02" style="--c:var(--purple);display:flex;gap:26px;align-items:center;padding:26px 34px">
+            <div class="ico"><i data-lucide="wine"></i></div>
+            <div>
+              <h3 style="font-size:30px;margin:0">Passeios, restaurantes e traslados</h3>
+              <p style="font-size:23px">Vinícola + teleférico (<b>R$ 1.100</b>) · gastronomia e traslados (<b>R$
+                  1.600</b>)</p>
+            </div>
+          </div>
+          <div class="card r02" style="--c:var(--cyan);display:flex;gap:26px;align-items:center;padding:26px 34px">
+            <div class="ico"><i data-lucide="sun"></i></div>
+            <div>
+              <h3 style="font-size:30px;margin:0">Clima ajustado ao roteiro</h3>
+              <p style="font-size:23px">Dias 2 e 3 de sol → ar livre · dia 4 nublado → museu</p>
+            </div>
+          </div>
+          <div class="card r02" style="--c:var(--green);display:flex;gap:26px;align-items:center;padding:26px 34px">
+            <div class="ico"><i data-lucide="wallet"></i></div>
+            <div>
+              <h3 style="font-size:30px;margin:0">Total: R$ 4.650</h3>
+              <p style="font-size:23px">R$ 1.950 + R$ 1.100 + R$ 1.600 · dentro dos R$ 5.000 (margem de <b>R$ 350</b>)
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
-  </div></div>
-  <style>@keyframes idFlow{0%{transform:translateX(-100%)}100%{transform:translateX(300%)}}@keyframes mrrPulse{0%,100%{box-shadow:0 0 0 transparent}50%{box-shadow:0 0 28px color-mix(in srgb,var(--green) 35%,transparent)}}</style>
-  <div class="foot"><span>Document ID · Hit Rate · MRR</span><span><b class="n"></b> / 25</span></div>
-</section>
+    <div class="foot"><span>Planejador de Viagens</span><span><b class="n"></b> / 25</span></div>
+  </section>
 
-<!-- ============ 22 · RACIOCÍNIO E DECISÃO ============ -->
-<section class="slide" data-scene="s22rea">
-  <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Raciocínio e decisão</span>
-    <h2 class="reveal" style="--i:1">Como o agente <span class="hl">pensa</span>.</h2></div>
-  <div class="body"><div class="grid2">
-    <div style="display:flex;flex-direction:column;gap:26px">
-      <div class="card reveal" style="--i:2;--c:var(--purple);padding:30px 38px">
-        <h3>Lógica do agente</h3>
-        <ul>
-          <li><b>Dedutivo</b> → regra → caso</li>
-          <li><b>Indutivo</b> → exemplos → padrão</li>
-          <li><b>Abdutivo</b> → observação → hipótese</li>
-        </ul>
-      </div>
-      <div class="card reveal" style="--i:3;--c:var(--cyan);padding:30px 38px">
-        <h3>CoT & Ciclo ReAct</h3>
-        <ul>
-          <li><b>CoT:</b> Zero-shot ("passo a passo") · Few-shot (exemplos)</li>
-          <li><b>ReAct:</b> Pensar → Agir → Observar → Repetir</li>
-        </ul>
+  <!-- ============ 03 · ARQUITETURA GERAL ============ -->
+  <section class="slide" data-scene="s03">
+    <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Como a IA respondeu?</span>
+      <h2 class="reveal" style="--i:1">Não é um modelo. É uma <span class="hl">equipe</span>.</h2>
+    </div>
+    <div class="body stage reveal" style="--i:2"><svg id="s03svg"></svg></div>
+    <div class="foot"><span>Visão geral da arquitetura</span><span><b class="n"></b> / 25</span></div>
+  </section>
+
+  <!-- ============ 04 · POR QUE AGENTIC RAG ============ -->
+  <section class="slide" data-scene="s04">
+    <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Agentic RAG</span>
+      <h2 class="reveal" style="--i:1">Por que dividir o trabalho?</h2>
+    </div>
+    <div class="body">
+      <div class="grid2">
+        <div class="card reveal" style="--i:2;--c:var(--red);border-color:rgba(255,93,108,.3)">
+          <div class="row" style="align-items:center;gap:22px">
+            <div class="ico" style="--c:var(--red)"><i data-lucide="user-x"></i></div>
+            <h3 style="margin:0;color:#ffb3ba">Um LLM fazendo tudo</h3>
+          </div>
+          <ul style="margin-top:24px">
+            <li>Lê o guia, confere o tempo e soma o orçamento <b>de uma vez</b></li>
+            <li>Faz conta de cabeça, e <b>conta é a parte que ele mais erra</b></li>
+            <li>Não sabe o que mudou hoje: clima, preço, feriado</li>
+          </ul>
+        </div>
+        <div class="card reveal" style="--i:3;--c:var(--green);border-color:rgba(53,208,127,.35)">
+          <div class="row" style="align-items:center;gap:22px">
+            <div class="ico" style="--c:var(--green)"><i data-lucide="layers"></i></div>
+            <h3 style="margin:0;color:#a8f0c9">Nós especialistas</h3>
+          </div>
+          <ul style="margin-top:24px">
+            <li><b>Nó Guia (RAG):</b> só consulta o guia curado da agência</li>
+            <li><b>Nó Clima (API):</b> só busca a previsão do tempo</li>
+            <li><b>Nó Financeiro (Cálculo):</b> só calcula com ferramenta matemática</li>
+          </ul>
+        </div>
       </div>
     </div>
-    <div class="card reveal" style="--i:4;--c:var(--orange);display:flex;flex-direction:column;justify-content:space-between">
-      <div>
-        <div class="row" style="align-items:center;gap:22px;margin-bottom:14px"><div class="ico" style="--c:var(--orange)"><i data-lucide="cpu"></i></div><h3 style="margin:0">RPA × Agente × LAM</h3></div>
-        <ul>
-          <li><b>RPA</b> → regras fixas</li>
-          <li><b>Agente</b> → raciocina e decide</li>
-          <li><b>LAM</b> → age em interfaces</li>
-        </ul>
-      </div>
-      <div style="display:flex;gap:14px;align-items:center;justify-content:space-between;padding-top:20px;border-top:1px solid var(--mira-card-border)">
-        <span class="pill react-step" style="--rs:0s">Pensar</span>
-        <span style="color:var(--softer)">→</span>
-        <span class="pill react-step" style="--rs:1.2s">Agir</span>
-        <span style="color:var(--softer)">→</span>
-        <span class="pill react-step" style="--rs:2.4s">Observar</span>
-        <span style="color:var(--softer)">→</span>
-        <span class="pill react-step" style="--rs:3.6s">Repetir</span>
+    <div class="foot"><span>Especialização</span><span><b class="n"></b> / 25</span></div>
+  </section>
+
+  <!-- ============ 05 · LANGGRAPH (ANIMADO) ============ -->
+  <section class="slide" data-scene="s05">
+    <div class="hd"><span class="kick reveal" style="--i:0"><i></i>LangGraph · o fluxo</span>
+      <h2 class="reveal" style="--i:1">Um grafo que <span class="hl">se corrige</span>.</h2>
+      <p class="sub reveal" style="--i:2">Os <b>nós</b> executam, as <b>arestas</b> direcionam e o <b>estado</b> mantém
+        o contexto compartilhado.</p>
+    </div>
+    <div class="body stage reveal" style="--i:3;top:410px"><svg id="s05svg"></svg></div>
+    <div class="foot"><span>Nós · Arestas · Estado</span><span><b class="n"></b> / 25</span></div>
+  </section>
+
+  <!-- ============ 06 · ONDE ENTRA O RAG ============ -->
+  <section class="slide" data-scene="s06">
+    <div class="hd"><span class="kick reveal" style="--i:0"><i></i>De onde vêm os fatos?</span>
+      <h2 class="reveal" style="--i:1">Onde entra o <span class="hl">RAG</span>?</h2>
+      <p class="sub reveal" style="--i:2">Sem RAG o modelo responde de memória. Com RAG, ele <b>consulta o guia da
+          agência</b> antes de responder.</p>
+    </div>
+    <div class="body">
+      <div class="grid3" id="s06grid" style="align-items:center;height:auto;top:60px;position:relative">
+        <div class="card reveal s06c" style="--i:3;--c:var(--green)">
+          <div class="ico" style="margin-bottom:24px;--c:var(--green)"><i data-lucide="search"></i></div>
+          <h3>1 · Recuperar</h3>
+          <p>Busca no guia só os <b>trechos</b> que importam para a pergunta.</p>
+        </div>
+        <div class="card reveal s06c" style="--i:4;--c:var(--cyan)">
+          <div class="ico" style="margin-bottom:24px;--c:var(--cyan)"><i data-lucide="layers"></i></div>
+          <h3>2 · Acrescentar</h3>
+          <p>Coloca esses trechos <b>dentro do prompt</b> como base obrigatória.</p>
+        </div>
+        <div class="card reveal s06c" style="--i:5;--c:var(--orange)">
+          <div class="ico" style="margin-bottom:24px"><i data-lucide="sparkles"></i></div>
+          <h3>3 · Gerar</h3>
+          <p>O modelo escreve a resposta <b>apoiado no que foi recuperado</b>.</p>
+        </div>
       </div>
     </div>
-  </div></div>
-  <style>.slide.active .react-step{animation:rStep 4.8s infinite;animation-delay:var(--rs)}@keyframes rStep{0%,28%,100%{border-color:var(--mira-pill-border);color:var(--soft);background:var(--mira-pill-bg)}6%,20%{border-color:var(--orange);color:var(--ink);background:var(--mira-icon-bg);box-shadow:0 0 22px var(--mira-glow-strong)}}</style>
-  <div class="foot"><span>Lógica · CoT · ReAct · LAM</span><span><b class="n"></b> / 25</span></div>
-</section>
+    <style>
+      .s06c {
+        transition: transform .5s, border-color .5s, box-shadow .5s
+      }
 
-<!-- ============ 23 · OBSERVABILIDADE ============ -->
-<section class="slide" data-scene="s23obs">
-  <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Observabilidade</span>
-    <h2 class="reveal" style="--i:1">Ver <span class="hl">o que</span> o agente fez.</h2>
-    <p class="sub reveal" style="--i:2">Pilares: <b>Traces · Logs · Metrics</b></p></div>
-  <div class="body"><div class="grid2" style="margin-top:16px;height:calc(100% - 16px)">
-    <div class="card reveal" style="--i:3;--c:var(--cyan);display:flex;flex-direction:column;justify-content:space-between">
-      <div>
-        <div class="row" style="align-items:center;gap:22px;margin-bottom:14px"><div class="ico" style="--c:var(--cyan)"><i data-lucide="activity"></i></div><h3 style="margin:0">Ferramentas</h3></div>
-        <ul>
-          <li><b>LangSmith</b> → rastreamento de LLMs, agentes e ferramentas</li>
-          <li><b>Pydantic Logfire</b> → observabilidade de aplicações Python com OpenTelemetry</li>
-        </ul>
-      </div>
-      <div id="s23tr" style="display:flex;flex-direction:column;gap:10px;padding-top:18px">
-        <i style="--w:88%;--c:var(--cyan);--d:0s"></i>
-        <i style="--w:62%;--c:var(--orange);--d:.35s"></i>
-        <i style="--w:74%;--c:var(--green);--d:.7s"></i>
+      .slide.active .s06c {
+        animation: s06hl 6s infinite;
+        animation-delay: calc((var(--i) - 3) * 2s)
+      }
+
+      @keyframes s06hl {
+
+        0%,
+        28%,
+        100% {
+          transform: none;
+          border-color: var(--mira-card-border)
+        }
+
+        6%,
+        22% {
+          transform: translateY(-14px);
+          border-color: var(--c);
+          box-shadow: 0 30px 70px color-mix(in srgb, var(--c) 30%, transparent)
+        }
+      }
+    </style>
+    <div class="foot"><span>Retrieval-Augmented Generation</span><span><b class="n"></b> / 25</span></div>
+  </section>
+
+  <!-- ============ 07 · INGESTÃO (ANIMADO) ============ -->
+  <section class="slide" data-scene="s07">
+    <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Como nasce o RAG</span>
+      <h2 class="reveal" style="--i:1">Do PDF ao <span class="hl">banco vetorial</span>.</h2>
+    </div>
+    <div class="body stage reveal" style="--i:2;top:300px"><svg id="s07svg"></svg></div>
+    <div class="foot"><span>Esteira de ingestão</span><span><b class="n"></b> / 25</span></div>
+  </section>
+
+  <!-- ============ 08 · CHUNKS x TOKENS ============ -->
+  <section class="slide" data-scene="s08">
+    <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Duas escalas</span>
+      <h2 class="reveal" style="--i:1">Chunk não é <span class="hl">token</span>.</h2>
+    </div>
+    <div class="body">
+      <div class="grid2">
+        <div class="card reveal" style="--i:2">
+          <h3>Chunk · escala macro</h3>
+          <p>Pedaços do documento, cortados antes da busca. Têm <b>tamanho e sobreposição</b> configuráveis.</p>
+          <div style="margin-top:34px;display:flex;flex-direction:column;gap:14px" id="s08chunks">
+            <div class="ck" style="--c:var(--orange)">Guia de Santiago · hospedagem</div>
+            <div class="ck" style="--c:var(--purple);margin-left:36px">Guia de Santiago · passeios de casal</div>
+            <div class="ck" style="--c:var(--cyan);margin-left:72px">Guia de Santiago · restaurantes</div>
+          </div>
+          <p style="margin-top:26px;font:500 21px var(--mono);color:var(--softer)">RecursiveCharacterTextSplitter</p>
+        </div>
+        <div class="card reveal" style="--i:3;--c:var(--cyan)">
+          <h3>Token · escala micro</h3>
+          <p>Pedaços de palavra que a rede neural lê. <b>É assim que o modelo enxerga o chunk.</b></p>
+          <div id="s08tok" style="margin-top:34px;display:flex;flex-wrap:wrap;gap:12px">
+            <span class="tk">San</span><span class="tk">tiago</span><span class="tk">tem</span><span
+              class="tk">vin</span><span class="tk">ícolas</span><span class="tk">lin</span><span
+              class="tk">das</span><span class="tk">.</span>
+          </div>
+          <p style="margin-top:26px;font:500 21px var(--mono);color:var(--softer)">exemplo ilustrativo de tokenização
+          </p>
+        </div>
       </div>
     </div>
-    <div class="card reveal" style="--i:4;--c:var(--orange)">
-      <div class="row" style="align-items:center;gap:22px;margin-bottom:14px"><div class="ico" style="--c:var(--orange)"><i data-lucide="gauge"></i></div><h3 style="margin:0">Métricas</h3></div>
-      <ul>
-        <li><b>Latência</b> → total e por etapa</li>
-        <li><b>Tokens e custo</b> → consumo de <i>prompt</i> e <i>completion</i></li>
-        <li><b>Falhas de tools</b> → erros em APIs e ferramentas</li>
-      </ul>
-    </div>
-  </div></div>
-  <style>#s23tr i{display:block;height:14px;border-radius:9px;background:var(--c);opacity:.8;width:0;animation:tr 5s ease-in-out infinite;animation-delay:var(--d)}</style>
-  <div class="foot"><span>Traces · Logs · Metrics</span><span><b class="n"></b> / 25</span></div>
-</section>
+    <style>
+      .ck {
+        font: 600 26px 'Inter';
+        padding: 20px 26px;
+        border-radius: 16px;
+        border: 1px solid color-mix(in srgb, var(--c) 55%, transparent);
+        background: color-mix(in srgb, var(--c) 12%, transparent)
+      }
 
-<!-- ============ 24 · EXPLICABILIDADE E GUARDRAILS ============ -->
-<section class="slide" data-scene="s24exp">
-  <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Explicabilidade e Guardrails</span>
-    <h2 class="reveal" style="--i:1">Entender e <span class="hl">proteger</span>.</h2></div>
-  <div class="body"><div class="grid2">
-    <div class="card reveal" style="--i:2;--c:var(--purple);display:flex;flex-direction:column;justify-content:space-between">
-      <div>
-        <div class="row" style="align-items:center;gap:22px;margin-bottom:14px"><div class="ico" style="--c:var(--purple)"><i data-lucide="eye"></i></div><h3 style="margin:0">Explicabilidade <span class="pill" style="color:var(--purple);font-size:17px">por quê decidiu</span></h3></div>
-        <ul>
-          <li><b>LIME</b> → local, aproximação linear</li>
-          <li><b>SHAP</b> → Teoria dos Jogos (Shapley), local e global</li>
-        </ul>
+      .slide.active .ck {
+        animation: ckf 6s ease-in-out infinite
+      }
+
+      .ck:nth-child(2) {
+        animation-delay: .6s !important
+      }
+
+      .ck:nth-child(3) {
+        animation-delay: 1.2s !important
+      }
+
+      @keyframes ckf {
+
+        0%,
+        100% {
+          transform: translateX(0)
+        }
+
+        50% {
+          transform: translateX(22px)
+        }
+      }
+
+      .tk {
+        font: 600 28px var(--mono);
+        padding: 12px 18px;
+        border-radius: 12px;
+        background: rgba(56, 189, 248, .12);
+        border: 1px solid rgba(56, 189, 248, .4);
+        color: #bfe9ff
+      }
+
+      .slide.active .tk {
+        animation: tkh 4.8s infinite;
+        animation-delay: calc(var(--n) * .5s)
+      }
+
+      @keyframes tkh {
+
+        0%,
+        16%,
+        100% {
+          background: rgba(56, 189, 248, .12);
+          color: #bfe9ff
+        }
+
+        4%,
+        10% {
+          background: var(--cyan);
+          color: #001018
+        }
+      }
+    </style>
+    <div class="foot"><span>Chunking e tokenização</span><span><b class="n"></b> / 25</span></div>
+  </section>
+
+  <!-- ============ 09 · METADADOS + PYDANTIC ============ -->
+  <section class="slide" data-scene="s09">
+    <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Sem trabalho manual</span>
+      <h2 class="reveal" style="--i:1">A IA etiqueta. O <span class="hl">Pydantic</span> fiscaliza.</h2>
+    </div>
+    <div class="body">
+      <div class="grid2" style="grid-template-columns:1.1fr .9fr">
+        <div class="codeblock reveal" style="--i:2"><span class="c ln" style="--k:0"># o contrato que a IA precisa
+            cumprir</span><span class="ln" style="--k:1"><span class="k">class</span> <span
+              class="t">ChunkMeta</span>(BaseModel):</span><span class="ln" style="--k:2"> categoria: Literal[<span
+              class="s">"hospedagem"</span>,</span><span class="ln" style="--k:2"> <span class="s">"passeio"</span>,
+            <span class="s">"restaurante"</span>]</span><span class="ln" style="--k:3"> perfil: list[Literal[<span
+              class="s">"casal"</span>, <span class="s">"familia"</span>]]</span><span class="ln" style="--k:4">
+            faixa_preco: Literal[<span class="s">"baixo"</span>, <span class="s">"medio"</span>, <span
+              class="s">"alto"</span>]</span><span class="ln" style="--k:5"> clima: <span class="t">str</span></span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:24px">
+          <div class="card reveal" style="--i:3;--c:var(--purple)">
+            <h3>1 · A IA lê o chunk</h3>
+            <p>Um modelo leve classifica o trecho e propõe as etiquetas.</p>
+          </div>
+          <div class="card reveal" style="--i:4;--c:var(--green)">
+            <h3>2 · O Pydantic valida</h3>
+            <p>Campo errado ou faltando? <b>Rejeita</b> antes de entrar no banco.</p>
+          </div>
+          <div class="card reveal" style="--i:5">
+            <h3>3 · A busca filtra</h3>
+            <p>“Somos um casal” → só chunks com <code style="color:var(--orange)">perfil: casal</code>.</p>
+          </div>
+        </div>
       </div>
-      <div style="display:flex;flex-direction:column;gap:12px;padding:20px 24px;border-radius:18px;background:var(--mira-pill-bg);border:1px solid var(--mira-card-border)">
-        <div style="display:flex;align-items:center;gap:14px"><span class="mono" style="font-size:19px;width:140px;color:var(--soft)">Orçamento</span><div style="flex:1;height:12px;border-radius:99px;background:var(--mira-card-bg);overflow:hidden"><i style="display:block;height:100%;background:var(--green);animation:shapBar 4s ease-in-out infinite;--sw:82%"></i></div><span class="mono" style="font-size:19px;color:var(--green)">+0.42</span></div>
-        <div style="display:flex;align-items:center;gap:14px"><span class="mono" style="font-size:19px;width:140px;color:var(--soft)">Clima chuva</span><div style="flex:1;height:12px;border-radius:99px;background:var(--mira-card-bg);overflow:hidden"><i style="display:block;height:100%;background:var(--red);animation:shapBar 4s ease-in-out infinite .6s;--sw:48%"></i></div><span class="mono" style="font-size:19px;color:var(--red)">−0.21</span></div>
+    </div>
+    <div class="foot"><span>Metadados automáticos · exemplo do projeto</span><span><b class="n"></b> / 25</span></div>
+  </section>
+
+  <!-- ============ 10 · EMBEDDINGS ============ -->
+  <section class="slide" data-scene="s10">
+    <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Embeddings</span>
+      <h2 class="reveal" style="--i:1">Significado vira <span class="hl">números</span>.</h2>
+      <p class="sub reveal" style="--i:2">Quem faz isso <b>não é o LLM</b>: é um modelo de embedding separado.</p>
+    </div>
+    <div class="body">
+      <div class="row reveal" style="--i:3;align-items:center;justify-content:space-between;margin-top:20px">
+        <div class="card" style="width:520px;text-align:center"><span class="pill">texto</span>
+          <h3 style="margin-top:22px;font-size:38px">“Degustação de vinhos nos Andes”</h3>
+        </div>
+        <div style="text-align:center">
+          <div class="ico"
+            style="width:110px;height:110px;margin:0 auto;--c:var(--cyan);animation:floaty 3s ease-in-out infinite"><i
+              data-lucide="cpu" style="width:56px;height:56px"></i></div>
+          <p style="font:600 22px var(--mono);color:var(--cyan);margin-top:16px">all-MiniLM-L6-v2</p>
+        </div>
+        <div class="card" style="width:640px;--c:var(--green)"><span class="pill"
+            style="color:var(--green)">vetor</span>
+          <div id="s10vec" class="mono" style="font-size:34px;line-height:1.7;margin-top:18px;color:var(--green)">[ 0.48
+            −0.19 0.81 0.05 … ]</div>
+        </div>
+      </div>
+      <div class="row reveal" style="--i:4;margin-top:56px;gap:36px">
+        <div class="card" style="flex:1">
+          <p>“vinícola” × “degustação de vinhos”</p>
+          <div class="bar"><i id="s10b1"></i></div><b class="mono" id="s10v1"
+            style="font-size:30px;color:var(--green)">0.00</b>
+        </div>
+        <div class="card" style="flex:1">
+          <p>“vinícola” × “parquinho infantil”</p>
+          <div class="bar"><i id="s10b2" style="--c:var(--red)"></i></div><b class="mono" id="s10v2"
+            style="font-size:30px;color:var(--red)">0.00</b>
+        </div>
       </div>
     </div>
-    <div class="card reveal" style="--i:3;--c:var(--green)">
-      <div class="row" style="align-items:center;gap:22px;margin-bottom:14px"><div class="ico" style="--c:var(--green)"><i data-lucide="shield-check"></i></div><h3 style="margin:0">Guardrails: 4 barreiras</h3></div>
-      <ul>
-        <li><b>1. Entrada</b> → prompt injection, PII, fora de escopo</li>
-        <li><b>2. Saída</b> → JSON válido, alucinação, conteúdo</li>
-        <li><b>3. Procedimental</b> → limite de passos, orçamento, comandos perigosos</li>
-        <li><b>4. Supervisão</b> → auditoria, anomalias, Human-in-the-Loop</li>
-      </ul>
+    <style>
+      .bar {
+        height: 16px;
+        border-radius: 99px;
+        background: rgba(255, 255, 255, .08);
+        margin: 18px 0 12px;
+        overflow: hidden
+      }
+
+      .bar i {
+        display: block;
+        height: 100%;
+        width: 0;
+        border-radius: 99px;
+        background: var(--c, var(--green));
+        transition: width 1.4s cubic-bezier(.22, 1, .36, 1)
+      }
+    </style>
+    <div class="foot"><span>Similaridade ilustrativa · valores de exemplo</span><span><b class="n"></b> / 25</span>
     </div>
-  </div></div>
-  <style>@keyframes shapBar{0%,100%{width:20%}50%{width:var(--sw)}}</style>
-  <div class="foot"><span>LIME · SHAP · 4 Barreiras</span><span><b class="n"></b> / 25</span></div>
-</section>
+  </section>
 
-<!-- ============ 25 · FECHAMENTO ============ -->
-<section class="slide" data-scene="s18">
-  <div id="s18orb" style="position:absolute;inset:0;z-index:1"></div>
-  <div style="position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);z-index:2;text-align:center">
-    <span class="kick reveal" style="--i:0"><i></i>Voltando ao começo</span>
-    <h2 class="reveal" style="--i:1;margin:30px auto 0;font-size:96px;max-width:1300px">A mágica é <span class="hl">engenharia</span>.</h2>
-    <p class="sub reveal" style="--i:2;margin:26px auto 0;text-align:center;max-width:1200px">Um roteiro inteligente para Santiago, com informações confiáveis e dentro do orçamento.</p>
-    <p class="reveal" style="--i:3;font:700 44px 'Inter', sans-serif;color:var(--orange);margin-top:54px">Obrigada!</p>
-    <p class="reveal" style="--i:4;font:500 24px 'Inter', sans-serif;color:var(--soft);margin-top:12px">Brenda Prestes</p>
-  </div>
-</section>
+  <!-- ============ 11 · BANCO VETORIAL ============ -->
+  <section class="slide" data-scene="s11">
+    <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Banco vetorial</span>
+      <h2 class="reveal" style="--i:1">Achar por <span class="hl">significado</span>.</h2>
+    </div>
+    <div class="body">
+      <div class="grid2" style="grid-template-columns:1.15fr .85fr">
+        <div class="card stage reveal" style="--i:2;padding:10px"><svg id="s11svg" viewBox="0 0 900 560"></svg></div>
+        <div style="display:flex;flex-direction:column;gap:22px">
+          <div class="card reveal" style="--i:3;--c:var(--cyan)">
+            <h3>Similaridade de cosseno</h3>
+            <p>Mede o <b>ângulo</b> entre vetores: 1 igual, 0 sem relação, −1 oposto.</p>
+          </div>
+          <div class="card reveal" style="--i:4;--c:var(--purple)">
+            <h3>HNSW e LSH</h3>
+            <p>Índices que evitam comparar com <b>todos</b> os vetores.</p>
+          </div>
+          <div class="card reveal" style="--i:5;--c:var(--green)">
+            <h3>ChromaDB · FAISS · Qdrant</h3>
+            <p>Bancos que guardam e buscam vetores.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="foot"><span>Busca semântica</span><span><b class="n"></b> / 25</span></div>
+  </section>
 
-<script>
-/* ============ INFRA ============ */
-const SC = {}, NS = 'http://www.w3.org/2000/svg';
-const $ = s => document.querySelector(s);
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const ease = q => q * q * (3 - 2 * q);
-const lerp = (a, b, q) => a + (b - a) * q;
-function el(tag, at, parent) { const e = document.createElementNS(NS, tag); for (const k in at) e.setAttribute(k, at[k]); if (parent) parent.appendChild(e); return e; }
-function mkScene(id, fn) {
-  let run = 0;
-  SC[id] = {
-    start() { const my = ++run; const dead = () => run !== my; (async () => { while (!dead()) { try { await fn(dead); } catch (e) { console.error(id, e); await sleep(500); } await sleep(30); } })(); },
-    stop() { run++; }
-  };
-}
-function tween(ms, f, dead) { return new Promise(r => { const t0 = performance.now(); (function s(t) { if (dead()) return r(); const k = Math.min(1, (t - t0) / ms); f(k); k < 1 ? requestAnimationFrame(s) : r(); })(t0); }); }
-function frameLoop(id, T, f) {
-  let run = 0;
-  SC[id] = { start() { const my = ++run; const t0 = performance.now(); (function s(t) { if (run !== my) return; f(((t - t0) / 1000) % T / T); requestAnimationFrame(s); })(t0); }, stop() { run++; } };
-}
-function node(svg, id, cx, cy, w, h, title, sub, color) {
-  const g = el('g', { class: 'nd', id, transform: `translate(${cx - w / 2},${cy - h / 2})` }, svg);
-  el('rect', { width: w, height: h, rx: 22, class: 'nd-box', style: `--c:${color}` }, g);
-  el('text', { x: w / 2, y: sub ? h / 2 - 2 : h / 2 + 9, class: 'nd-t', 'text-anchor': 'middle' }, g).textContent = title;
-  if (sub) el('text', { x: w / 2, y: h / 2 + 28, class: 'nd-s', 'text-anchor': 'middle' }, g).textContent = sub;
-  return g;
-}
-function edge(svg, id, d, color, solid) { return el('path', { id, d, class: 'edge' + (solid ? ' solid' : ''), style: `--c:${color}` }, svg); }
-function tok(svg, color) { const c = el('circle', { r: 11, fill: color, class: 'tok', style: `color:${color};opacity:0` }, svg); return c; }
-function along(p, t, ms, dead) { const L = p.getTotalLength(); t.style.opacity = 1; return tween(ms, k => { const q = p.getPointAtLength(L * ease(k)); t.setAttribute('cx', q.x); t.setAttribute('cy', q.y); }, dead); }
-function hit(id, ms = 900) { const n = document.getElementById(id); if (!n) return; n.classList.add('on'); setTimeout(() => n.classList.remove('on'), ms); }
-function text(svg, x, y, cls, content, extra = {}) { const t = el('text', { x, y, class: cls, ...extra }, svg); t.textContent = content; return t; }
+  <!-- ============ 12 · RE-RANKING ============ -->
+  <section class="slide" data-scene="s12">
+    <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Precisão</span>
+      <h2 class="reveal" style="--i:1">A segunda opinião: <span class="hl">Re-Ranking</span>.</h2>
+    </div>
+    <div class="body">
+      <div class="grid2" style="grid-template-columns:1.1fr .9fr">
+        <div class="card reveal" style="--i:2;position:relative;padding:30px 36px">
+          <div id="s12list" style="position:relative;height:520px;margin-top:44px"></div>
+          <div id="s12lbl" class="mono"
+            style="position:absolute;right:36px;top:24px;font-size:22px;color:var(--softer)"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:22px">
+          <div class="card reveal" style="--i:3;--c:var(--cyan)">
+            <h3>Busca rápida</h3>
+            <p>O <b>bi-encoder</b> traz muitos candidatos, alguns só parecidos nas palavras.</p>
+          </div>
+          <div class="card reveal" style="--i:4">
+            <h3>Reavaliação</h3>
+            <p>O <b>cross-encoder</b> (BERT, RoBERTa, T5) lê pergunta e trecho <b>juntos</b>, como um par.</p>
+          </div>
+          <div class="card reveal" style="--i:5;--c:var(--green)">
+            <h3>Só os melhores</h3>
+            <p>Poucos trechos chegam ao LLM, e são os mais relevantes.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="foot"><span>Re-ranking · exemplo ilustrativo</span><span><b class="n"></b> / 25</span></div>
+  </section>
 
-/* ============ 01 · capa: pin percorre a rota ============ */
-frameLoop('s01', 9, q => { const p = $('#route1'); const L = p.getTotalLength(); const pt = p.getPointAtLength(L * ease(Math.min(1, q * 1.15))); const c = $('#pin1'); c.setAttribute('cx', pt.x); c.setAttribute('cy', pt.y); });
+  <!-- ============ 13 · ÁRVORE DO RAG (ANIMADO) ============ -->
+  <section class="slide" data-scene="s13">
+    <div class="hd"><span class="kick reveal" style="--i:0"><i></i>A família RAG</span>
+      <h2 class="reveal" style="--i:1">Um tronco, <span class="hl">muitos ramos</span>.</h2>
+    </div>
+    <div class="body stage reveal" style="--i:2;top:290px"><svg id="s13svg"></svg></div>
+    <div class="foot"><span>Evolução do RAG</span><span><b class="n"></b> / 25</span></div>
+  </section>
 
-/* ============ 02 · demonstração ============ */
-mkScene('s02', async dead => {
-  const msg = $('#s02msg'), dots = $('#s02dots'), cards = document.querySelectorAll('.r02');
-  const full = 'Quero viajar para Santiago em julho, 4 dias. Somos um casal e nosso orçamento é R$ 5.000.';
-  msg.textContent = ''; dots.style.opacity = 0;
-  cards.forEach(c => { c.style.opacity = 0; c.style.transform = 'translateX(60px)'; c.style.transition = 'none'; });
-  await sleep(600); if (dead()) return;
-  for (let i = 1; i <= full.length; i++) { if (dead()) return; msg.textContent = full.slice(0, i); await sleep(34); }
-  dots.style.opacity = 1; await sleep(1300); dots.style.opacity = 0;
-  for (const c of cards) { if (dead()) return; c.style.transition = 'all .7s cubic-bezier(.22,1,.36,1)'; c.style.opacity = 1; c.style.transform = 'none'; await sleep(650); }
-  await sleep(5200);
-});
+  <!-- ============ 14 · MEMÓRIA ============ -->
+  <section class="slide" data-scene="s14">
+    <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Memória da conversa</span>
+      <h2 class="reveal" style="--i:1">A lousa que <span class="hl">não estoura</span>.</h2>
+    </div>
+    <div class="body">
+      <div class="grid2">
+        <div class="card reveal" style="--i:2;--c:var(--red)">
+          <h3>ConversationBufferMemory</h3>
+          <p>Guarda a <b>conversa inteira</b>. O custo cresce a cada mensagem.</p>
+          <div id="s14a" class="mem"></div>
+          <p class="mono" id="s14ca" style="font-size:24px;margin-top:16px;color:var(--red)"></p>
+        </div>
+        <div class="card reveal" style="--i:3;--c:var(--green);border-color:rgba(53,208,127,.35)">
+          <h3>BufferWindowMemory <span class="pill" style="color:var(--green);font-size:18px">nossa escolha</span></h3>
+          <p>Lembra só as <b>últimas K</b> interações, como uma lousa pequena.</p>
+          <div id="s14b" class="mem"></div>
+          <p class="mono" id="s14cb" style="font-size:24px;margin-top:16px;color:var(--green)"></p>
+        </div>
+      </div>
+    </div>
+    <style>
+      .mem {
+        margin-top: 22px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        height: 330px;
+        overflow: hidden;
+        justify-content: flex-end
+      }
 
-/* ============ 03 · arquitetura geral ============ */
-(function () {
-  const svg = $('#s03svg'); svg.setAttribute('viewBox', '0 0 1680 560');
-  edge(svg, 'a1', 'M170 280 L400 280', '#FF904D'); edge(svg, 'a2', 'M590 280 L720 140', '#FF904D'); edge(svg, 'a3', 'M590 280 L720 280', '#38bdf8'); edge(svg, 'a4', 'M590 280 L720 420', '#35D07F');
-  edge(svg, 'a5', 'M960 140 L1170 280', '#FF904D'); edge(svg, 'a6', 'M960 280 L1170 280', '#38bdf8'); edge(svg, 'a7', 'M960 420 L1170 280', '#35D07F');
-  node(svg, 'n1', 100, 280, 180, 110, 'Usuário', 'pedido livre', '#FF904D');
-  node(svg, 'n2', 500, 280, 200, 130, 'LangGraph', 'orquestra o fluxo', '#FF904D');
-  node(svg, 'n3', 840, 140, 240, 100, 'Nó Guia', 'RAG no guia', '#FF904D');
-  node(svg, 'n4', 840, 280, 240, 100, 'Nó Clima', 'API web', '#38bdf8');
-  node(svg, 'n5', 840, 420, 240, 100, 'Nó Financeiro', 'ferramenta de cálculo', '#35D07F');
-  node(svg, 'n6', 1290, 280, 220, 130, 'Roteiro', 'validado', '#c084fc');
-  const t = [tok(svg, '#FF904D'), tok(svg, '#38bdf8'), tok(svg, '#35D07F')];
-  const paths = [['a1', 'a2', 'a5'], ['a1', 'a3', 'a6'], ['a1', 'a4', 'a7']];
-  frameLoop('s03', 6, q => {
-    t.forEach((tk, i) => {
-      const seg = paths[i].map(id => document.getElementById(id));
-      const lens = seg.map(s => s.getTotalLength()); const tot = lens.reduce((a, b) => a + b, 0);
-      let d = ((q + i * .12) % 1) * tot * 1.0; let k = 0; while (k < 2 && d > lens[k]) { d -= lens[k]; k++; }
-      const pt = seg[k].getPointAtLength(Math.min(d, lens[k])); tk.style.opacity = 1; tk.setAttribute('cx', pt.x); tk.setAttribute('cy', pt.y);
-    });
-  });
-})();
+      .mem div {
+        font: 500 22px 'Inter';
+        padding: 12px 18px;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, .07);
+        color: #fff;
+        animation: msgin .5s ease
+      }
 
-/* ============ 05 · LangGraph (loop de correção) ============ */
-(function () {
-  const svg = $('#s05svg'); svg.setAttribute('viewBox', '0 0 1700 560'); const Y = 330;
-  const X = [100, 315, 530, 745, 960, 1175, 1390, 1605];
-  const col = ['#FF904D', '#FF904D', '#FF904D', '#38bdf8', '#35D07F', '#FFC766', '#c084fc', '#35D07F'];
-  for (let i = 0; i < 7; i++) edge(svg, 'e' + i, `M${X[i]} ${Y} L${X[i + 1]} ${Y}`, col[i + 1]);
-  edge(svg, 'loop', `M${X[5]} ${Y} L${X[5]} 150 L${X[2]} 150 L${X[2]} ${Y}`, '#ff5d6c');
-  node(svg, 'g0', X[0], Y, 170, 110, 'Usuário', '', col[0]); node(svg, 'g1', X[1], Y, 170, 110, 'Roteador', 'LLM', col[1]);
-  node(svg, 'g2', X[2], Y, 170, 110, 'Guia', 'RAG', col[2]); node(svg, 'g3', X[3], Y, 170, 110, 'Clima', 'web', col[3]);
-  node(svg, 'g4', X[4], Y, 170, 110, 'Finanças', 'cálculo', col[4]);
-  const dg = el('g', { id: 'g5', class: 'nd' }, svg);
-  el('polygon', { points: `${X[5]},${Y - 100} ${X[5] + 100},${Y} ${X[5]},${Y + 100} ${X[5] - 100},${Y}`, class: 'nd-box', style: '--c:#FFC766' }, dg);
-  text(dg, X[5], Y + 8, 'nd-t', '≤ R$ 5.000?', { 'text-anchor': 'middle', style: 'font-size:22px' });
-  node(svg, 'g6', X[6], Y, 170, 110, 'Guardrails', 'segurança', col[6]); node(svg, 'g7', X[7], Y, 170, 110, 'Resposta', 'roteiro', col[7]);
-  text(svg, 850, 112, 'nd-s', 'aresta condicional: volta ao Guia se exceder o orçamento', { 'text-anchor': 'middle', style: 'font-size:22px;fill:#ff8f99' });
-  text(svg, 60, 70, 'nd-s', 'CUSTO NO ESTADO', { style: 'font-size:19px;letter-spacing:3px' });
-  const cost = text(svg, 60, 130, 'bigmono', 'R$ 0', { fill: '#fff' });
-  const verdict = text(svg, X[5], Y + 150, 'nd-t', '', { 'text-anchor': 'middle', style: 'font-size:26px' });
-  const cap = text(svg, 850, 520, 'cap', '');
-  const T = tok(svg, '#FFC766');
-  const countTo = (a, b, color, dead) => tween(700, k => { cost.textContent = 'R$ ' + Math.round(lerp(a, b, ease(k))).toLocaleString('pt-BR'); cost.setAttribute('fill', color); }, dead);
-  mkScene('s05', async dead => {
-    cost.textContent = 'R$ 0'; cost.setAttribute('fill', '#fff'); verdict.textContent = ''; cap.textContent = 'o pedido entra no grafo'; T.style.opacity = 0;
-    const P = id => document.getElementById(id);
-    await sleep(900); if (dead()) return;
-    await along(P('e0'), T, 700, dead); hit('g1'); cap.textContent = 'roteador decide quais nós acionar';
-    await along(P('e1'), T, 700, dead); hit('g2'); cap.textContent = 'Guia busca hotel e passeios de casal';
-    await along(P('e2'), T, 700, dead); hit('g3'); cap.textContent = 'Clima confere a previsão';
-    await along(P('e3'), T, 700, dead); hit('g4'); cap.textContent = 'Finanças soma o roteiro'; await countTo(0, 5200, '#ff5d6c', dead);
-    await along(P('e4'), T, 600, dead); hit('g5'); verdict.textContent = '✗ excedeu o orçamento'; verdict.setAttribute('fill', '#ff5d6c'); cap.textContent = 'excedeu o orçamento: a aresta condicional manda voltar';
-    await sleep(900); if (dead()) return;
-    await along(P('loop'), T, 2000, dead); hit('g2'); verdict.textContent = ''; cap.textContent = 'Guia troca o hotel por um parceiro com cupom';
-    await along(P('e2'), T, 600, dead); hit('g3'); await along(P('e3'), T, 600, dead); hit('g4'); await countTo(5200, 4650, '#35D07F', dead);
-    await along(P('e4'), T, 600, dead); hit('g5'); verdict.textContent = '✓ dentro do orçamento'; verdict.setAttribute('fill', '#35D07F'); cap.textContent = 'aprovado na segunda volta';
-    await sleep(500); if (dead()) return;
-    await along(P('e5'), T, 600, dead); hit('g6'); await along(P('e6'), T, 600, dead); hit('g7', 1800); cap.textContent = 'roteiro validado e entregue';
-    await sleep(2800);
-  });
-})();
+      @keyframes msgin {
+        from {
+          opacity: 0;
+          transform: translateY(16px)
+        }
+      }
+    </style>
+    <div class="foot"><span>Memória de curto prazo</span><span><b class="n"></b> / 25</span></div>
+  </section>
 
-/* ============ 07 · ingestão ============ */
-(function () {
-  const svg = $('#s07svg'); svg.setAttribute('viewBox', '0 0 1700 620'); const Y = 300;
-  const st = [[140, 'PDF', 'guia de Santiago', '#FF904D'], [470, 'Chunking', 'corta em blocos', '#c084fc'], [800, 'Etiquetas', 'IA + Pydantic', '#FFC766'], [1130, 'Embedding', 'texto → números', '#38bdf8']];
-  [[162, 448], [492, 778], [822, 1108]].forEach(([a, b], i) => edge(svg, 'sx' + i, `M${a} ${Y} L${b} ${Y}`, '#ffffff'));
-  edge(svg, 'sx3', `M1152 ${Y} L1410 ${Y}`, '#ffffff');
-  st.forEach(([x, t, s, c]) => {
-    el('rect', { x: x - 22, y: Y - 195, width: 44, height: 390, rx: 22, fill: '#0e1119', stroke: c, 'stroke-opacity': .6, 'stroke-width': 2.5 }, svg);
-    text(svg, x, Y - 250, 'nd-t', t, { 'text-anchor': 'middle' });
-    text(svg, x, Y - 222, 'nd-s', s, { 'text-anchor': 'middle' });
-  });
-  const dbx = 1520, dby = Y - 40;
-  el('ellipse', { cx: dbx, cy: dby, rx: 100, ry: 30, fill: 'none', stroke: '#35D07F', 'stroke-width': 3 }, svg);
-  el('path', { d: `M${dbx - 100} ${dby} L${dbx - 100} ${dby + 150} A100 30 0 0 0 ${dbx + 100} ${dby + 150} L${dbx + 100} ${dby}`, fill: 'none', stroke: '#35D07F', 'stroke-width': 3 }, svg);
-  const rows = [0, 1, 2].map(i => el('rect', { x: dbx - 76, y: dby + 40 + i * 34, width: 152, height: 18, rx: 9, fill: '#35D07F', opacity: 0 }, svg));
-  text(svg, dbx, dby + 220, 'nd-t', 'Banco vetorial', { 'text-anchor': 'middle' });
-  const lab = [['Hotel · Lastarria', 'casal · hospedagem', '[0.48 −0.19 …]'], ['Vinícola · Maipo', 'casal · passeio', '[0.12  0.77 …]'], ['Restaurante kids', 'família · restaurante', '[−0.30 0.41 …]']];
-  const chips = lab.map((l, i) => {
-    const g = el('g', {}, svg); el('rect', { width: 230, height: 58, rx: 14, x: -115, y: -29, fill: '#171a24', stroke: ['#FF904D', '#c084fc', '#38bdf8'][i], 'stroke-width': 2.5 }, g);
-    const a = text(g, 0, 8, 'nd-t', l[0], { 'text-anchor': 'middle', style: 'font-size:20px' });
-    const b = text(g, 0, 56, 'nd-s', '', { 'text-anchor': 'middle', style: 'font-size:19px;fill:#FFC766' });
-    return { g, a, b, l };
-  });
-  const cap = text(svg, 850, 580, 'cap', '');
-  const pyd = text(svg, 800, Y + 235, 'nd-s', '', { 'text-anchor': 'middle', style: 'font-size:20px;fill:#35D07F' });
-  frameLoop('s07', 16, p => {
-    const stX = 140, cX = 470, tX = 800, eX = 1130; const off = i => (i - 1) * 100;
-    let x, alpha = 1, sc = 1, split = 0, tag = 0, num = 0, dbn = 0, c = '';
-    if (p < .12) { x = lerp(stX, cX, ease(p / .12)); c = '1 · o PDF chega à estação de corte'; }
-    else if (p < .26) { x = cX; split = ease((p - .12) / .14); c = '2 · chunking: o guia vira blocos independentes'; }
-    else if (p < .44) { x = lerp(cX, tX, ease((p - .26) / .18)); split = 1; c = '2 · os blocos seguem para a classificação'; }
-    else if (p < .58) { x = tX; split = 1; tag = ease((p - .44) / .1); c = '3 · a IA etiqueta e o Pydantic valida o formato'; }
-    else if (p < .74) { const q = ease((p - .58) / .16); x = lerp(tX, eX, q); split = 1; tag = 1 - Math.max(0, (q - .6) / .4); num = q > .65 ? 1 : 0; c = '4 · o modelo de embedding transforma em vetor'; }
-    else if (p < .9) { const q = ease((p - .74) / .16); x = lerp(eX, dbx, q); split = 1; num = 1; alpha = 1 - Math.max(0, (q - .75) / .25); sc = 1 - q * .35; dbn = q > .8 ? 1 : 0; c = '5 · os vetores entram no banco vetorial'; }
-    else { x = dbx; alpha = 0; dbn = 1; c = '6 · pronto: o guia agora é pesquisável por significado'; }
-    cap.textContent = c; pyd.textContent = (p > .46 && p < .6) ? '✓ ChunkMeta válido' : '';
-    chips.forEach((ch, i) => {
-      const y = Y + off(i) * split + (split === 0 ? 0 : 0);
-      ch.g.setAttribute('transform', `translate(${x},${p < .12 ? Y : y}) scale(${sc})`); ch.g.style.opacity = split === 0 && i > 0 ? 0 : alpha;
-      ch.a.textContent = p < .12 ? 'guia_santiago.pdf' : (num ? ch.l[2] : ch.l[0]);
-      ch.b.textContent = tag > .05 ? ch.l[1] : ''; ch.b.style.opacity = tag;
-    });
-    rows.forEach((r, i) => r.setAttribute('opacity', p > .88 ? 1 : (p > .9 ? 1 : 0)));
-    rows.forEach((r, i) => r.setAttribute('opacity', p >= .83 + i * .02 ? .9 : 0));
-  });
-})();
+  <!-- ============ 15 · FLUXO COMPLETO (ANIMADO) ============ -->
+  <section class="slide" data-scene="s15">
+    <div class="hd"><span class="kick reveal" style="--i:0"><i></i>A máquina montada</span>
+      <h2 class="reveal" style="--i:1">O fluxo <span class="hl">completo</span>.</h2>
+    </div>
+    <div class="body stage reveal" style="--i:2;top:290px"><svg id="s15svg"></svg></div>
+    <div class="foot"><span>De ponta a ponta</span><span><b class="n"></b> / 25</span></div>
+  </section>
 
-/* ============ 10 · embeddings: números e barras ============ */
-(function () {
-  let iv = null;
-  SC.s10 = {
-    start() { const v = $('#s10vec'); const b1 = $('#s10b1'), b2 = $('#s10b2'), v1 = $('#s10v1'), v2 = $('#s10v2');
-      const upd = () => { v.textContent = '[ ' + Array.from({ length: 5 }, () => (Math.random() * 1.6 - .8).toFixed(2).replace('-', '−')).join(' ') + ' … ]'; };
-      const cyc = async () => { b1.style.width = '0%'; b2.style.width = '0%'; v1.textContent = '0.00'; v2.textContent = '0.00'; await sleep(1500); b1.style.width = '91%'; v1.textContent = '0.91'; await sleep(900); b2.style.width = '24%'; v2.textContent = '0.24'; };
-      upd(); clearInterval(iv); iv = setInterval(upd, 700); cyc(); this.t = setInterval(cyc, 7000); },
-    stop() { clearInterval(iv); clearInterval(this.t); }
-  };
-})();
+  <!-- ============ 16 · MCP ============ -->
+  <section class="slide" data-scene="s16">
+    <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Model Context Protocol</span>
+      <h2 class="reveal" style="--i:1">Uma tomada <span class="hl">universal</span> para ferramentas.</h2>
+    </div>
+    <div class="body">
+      <div class="stage reveal" style="--i:2;height:240px"><svg id="s16svg"></svg></div>
+      <div class="grid3" style="height:auto;margin-top:36px">
+        <div class="card reveal" style="--i:3;--c:var(--orange)">
+          <h3>Tools</h3>
+          <p>Ações: consultar o clima, calcular.</p>
+        </div>
+        <div class="card reveal" style="--i:4;--c:var(--cyan)">
+          <h3>Resources</h3>
+          <p>Dados: o guia de Santiago.</p>
+        </div>
+        <div class="card reveal" style="--i:5;--c:var(--purple)">
+          <h3>Prompts</h3>
+          <p>Instruções prontas e reutilizáveis.</p>
+        </div>
+      </div>
+    </div>
+    <div class="foot"><span>Host · Cliente · Servidor · STDIO · HTTP/SSE</span><span><b class="n"></b> / 25</span></div>
+  </section>
 
-/* ============ 11 · banco vetorial: dispersão ============ */
-(function () {
-  const svg = $('#s11svg'); let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  const cl = [{ x: 220, y: 170, c: '#FF904D', n: 'hospedagem' }, { x: 640, y: 190, c: '#c084fc', n: 'passeios de casal' }, { x: 420, y: 430, c: '#38bdf8', n: 'família e crianças' }];
-  const pts = [];
-  cl.forEach((c, ci) => { text(svg, c.x, c.y - 100, 'nd-s', c.n, { 'text-anchor': 'middle', style: 'font-size:21px;fill:' + c.c }); for (let i = 0; i < 14; i++) { const a = rnd() * 6.28, r = Math.sqrt(rnd()) * 95; const p = { x: c.x + Math.cos(a) * r, y: c.y + Math.sin(a) * r, ci, e: el('circle', { r: 7, fill: c.c, opacity: .6 }, svg) }; p.e.setAttribute('cx', p.x); p.e.setAttribute('cy', p.y); pts.push(p); } });
-  const lines = [0, 1, 2].map(() => el('line', { stroke: '#fff', 'stroke-width': 2, 'stroke-dasharray': '6 6', opacity: 0 }, svg));
-  const q = el('g', {}, svg); el('circle', { r: 16, fill: '#fff' }, q); el('circle', { r: 30, fill: 'none', stroke: '#fff', 'stroke-width': 2, style: 'animation:pulse 1.6s infinite' }, q);
-  const lbl = text(svg, 450, 540, 'cap', '', { style: 'font-size:24px' });
-  mkScene('s11', async dead => {
-    for (let ci = 0; ci < 3; ci++) {
-      if (dead()) return;
-      const from = { x: 450, y: 300 }; const to = { x: cl[ci].x + 20, y: cl[ci].y + 10 };
-      lines.forEach(l => l.setAttribute('opacity', 0)); pts.forEach(p => p.e.setAttribute('opacity', .6)); pts.forEach(p => p.e.setAttribute('r', 7));
-      lbl.textContent = ['pergunta: “hotel bonito perto do centro”', 'pergunta: “vinícola para casal”', 'pergunta: “passeio com criança”'][ci];
-      await tween(1200, k => { const e = ease(k); q.setAttribute('transform', `translate(${lerp(from.x, to.x, e)},${lerp(from.y, to.y, e)})`); }, dead);
-      const near = pts.map(p => ({ p, d: Math.hypot(p.x - to.x, p.y - to.y) })).sort((a, b) => a.d - b.d).slice(0, 3);
-      pts.forEach(p => p.e.setAttribute('opacity', .18));
-      near.forEach((n, i) => { n.p.e.setAttribute('opacity', 1); n.p.e.setAttribute('r', 12); lines[i].setAttribute('x1', to.x); lines[i].setAttribute('y1', to.y); lines[i].setAttribute('x2', n.p.x); lines[i].setAttribute('y2', n.p.y); lines[i].setAttribute('opacity', .9); });
-      await sleep(2600);
-      await tween(700, k => { const e = ease(k); q.setAttribute('transform', `translate(${lerp(to.x, 450, e)},${lerp(to.y, 300, e)})`); }, dead);
+  <!-- ============ 17 · PRODUÇÃO ============ -->
+  <section class="slide" data-scene="s17">
+    <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Em produção</span>
+      <h2 class="reveal" style="--i:1">Confiável é o que <span class="hl">dá para auditar</span>.</h2>
+    </div>
+    <div class="body">
+      <div class="grid2">
+        <div class="card reveal" style="--i:2">
+          <div class="ico" style="margin-bottom:22px"><i data-lucide="shield-check"></i></div>
+          <h3>Guardrails</h3>
+          <ul>
+            <li>Barreira na <b>entrada</b>: pedido fora do escopo</li>
+            <li>Barreira na <b>saída</b>: o roteiro respeita o orçamento?</li>
+            <li>Ações perigosas ficam <b>bloqueadas</b></li>
+          </ul>
+        </div>
+        <div class="card reveal" style="--i:3;--c:var(--cyan)">
+          <div class="ico" style="margin-bottom:22px;--c:var(--cyan)"><i data-lucide="activity"></i></div>
+          <h3>Observabilidade</h3>
+          <ul>
+            <li><b>LangSmith</b>: rastro de cada nó do grafo</li>
+            <li><b>Pydantic Logfire</b>: tempo, erros e custo</li>
+            <li><b>SHAP / LIME</b>: por que a IA recomendou isso</li>
+          </ul>
+          <div id="s17tr" style="margin-top:26px;display:flex;flex-direction:column;gap:8px">
+            <i></i><i></i><i></i><i></i></div>
+        </div>
+      </div>
+    </div>
+    <style>
+      #s17tr i {
+        display: block;
+        height: 12px;
+        border-radius: 9px;
+        background: var(--cyan);
+        opacity: .75;
+        width: 0;
+        animation: tr 5s ease-in-out infinite
+      }
+
+      #s17tr i:nth-child(2) {
+        animation-delay: .3s;
+        background: var(--orange)
+      }
+
+      #s17tr i:nth-child(3) {
+        animation-delay: .6s;
+        background: var(--green)
+      }
+
+      #s17tr i:nth-child(4) {
+        animation-delay: .9s;
+        background: var(--purple)
+      }
+
+      @keyframes tr {
+        0% {
+          width: 0
+        }
+
+        35%,
+        80% {
+          width: var(--w, 70%)
+        }
+
+        100% {
+          width: 0
+        }
+      }
+
+      #s17tr i:nth-child(1) {
+        --w: 90%
+      }
+
+      #s17tr i:nth-child(2) {
+        --w: 60%
+      }
+
+      #s17tr i:nth-child(3) {
+        --w: 75%
+      }
+
+      #s17tr i:nth-child(4) {
+        --w: 45%
+      }
+    </style>
+    <div class="foot"><span>Governança</span><span><b class="n"></b> / 25</span></div>
+  </section>
+
+  <!-- ============ 18 · DIVISOR: NOS BASTIDORES ============ -->
+  <section class="slide" data-scene="s18">
+    <div style="position:absolute;left:120px;right:120px;top:170px;z-index:2">
+      <span class="kick reveal" style="--i:0"><i></i>Apêndice técnico · fora do case</span>
+      <h1 class="reveal"
+        style="--i:1;font-size:112px;font-weight:800;letter-spacing:-.04em;line-height:1.02;margin-top:34px">Nos <span
+          class="hl">bastidores</span>.</h1>
+      <p class="sub reveal" style="--i:2;font-size:34px;margin-top:26px;max-width:1200px">Aprofundamento nos fundamentos
+        de engenharia que sustentam sistemas de IA em produção.</p>
+      <div class="grid5ap reveal" style="--i:3;margin-top:78px">
+        <div class="card ap-pill" style="--c:var(--cyan);--d:0s">
+          <div class="ico" style="--c:var(--cyan)"><i data-lucide="sliders"></i></div>
+          <h3>Fine-Tuning</h3>
+          <p>LoRA & QLoRA</p>
+        </div>
+        <div class="card ap-pill" style="--c:var(--orange);--d:1.2s">
+          <div class="ico" style="--c:var(--orange)"><i data-lucide="users"></i></div>
+          <h3>Agentes</h3>
+          <p>Frameworks</p>
+        </div>
+        <div class="card ap-pill" style="--c:var(--green);--d:2.4s">
+          <div class="ico" style="--c:var(--green)"><i data-lucide="database"></i></div>
+          <h3>RAG</h3>
+          <p>Eficiência & métricas</p>
+        </div>
+        <div class="card ap-pill" style="--c:var(--purple);--d:3.6s">
+          <div class="ico" style="--c:var(--purple)"><i data-lucide="brain"></i></div>
+          <h3>Raciocínio</h3>
+          <p>Lógica, CoT & ReAct</p>
+        </div>
+        <div class="card ap-pill" style="--c:var(--mira-accent-2);--d:4.8s">
+          <div class="ico" style="--c:var(--mira-accent-2)"><i data-lucide="shield-check"></i></div>
+          <h3>Governança</h3>
+          <p>Observabilidade & Guardrails</p>
+        </div>
+      </div>
+    </div>
+    <style>
+      .grid5ap {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 24px
+      }
+
+      .ap-pill {
+        padding: 30px 26px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        align-items: flex-start;
+        transition: transform .5s, border-color .5s, box-shadow .5s
+      }
+
+      .ap-pill h3 {
+        font-size: 30px;
+        margin: 0
+      }
+
+      .ap-pill p {
+        font-size: 22px;
+        margin: 0
+      }
+
+      .slide.active .ap-pill {
+        animation: apCycle 6s ease-in-out infinite;
+        animation-delay: var(--d)
+      }
+
+      @keyframes apCycle {
+
+        0%,
+        24%,
+        100% {
+          transform: none;
+          border-color: var(--mira-card-border)
+        }
+
+        6%,
+        18% {
+          transform: translateY(-14px);
+          border-color: var(--c);
+          box-shadow: 0 26px 60px color-mix(in srgb, var(--c) 28%, transparent)
+        }
+      }
+    </style>
+    <div class="foot"><span>Aprofundamento técnico</span><span><b class="n"></b> / 25</span></div>
+  </section>
+
+  <!-- ============ 19 · FINE-TUNING, LORA E QLORA ============ -->
+  <section class="slide" data-scene="s19ft">
+    <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Treinamento e adaptação</span>
+      <h2 class="reveal" style="--i:1">Quando RAG não basta: <span class="hl">ensinar o modelo</span>.</h2>
+    </div>
+    <div class="body">
+      <div class="grid3" style="align-items:stretch">
+        <div class="card reveal s06c" style="--i:2;--c:var(--cyan)">
+          <div class="ico" style="margin-bottom:22px;--c:var(--cyan)"><i data-lucide="graduation-cap"></i></div>
+          <h3>Pre-training × Fine-tuning</h3>
+          <ul>
+            <li><b>Pre-training</b> → modelo generalista</li>
+            <li><b>Fine-tuning</b> → dados do domínio (<i>domain-specific dataset</i>)</li>
+          </ul>
+        </div>
+        <div class="card reveal s06c" style="--i:3;--c:var(--red)">
+          <div class="ico" style="margin-bottom:22px;--c:var(--red)"><i data-lucide="alert-triangle"></i></div>
+          <h3>Riscos</h3>
+          <ul>
+            <li><b>Esquecimento catastrófico</b> → perde o que sabia</li>
+            <li><b>Overfitting</b> → decora, não generaliza</li>
+          </ul>
+        </div>
+        <div class="card reveal s06c" style="--i:4;--c:var(--green)">
+          <div class="ico" style="margin-bottom:22px;--c:var(--green)"><i data-lucide="cpu"></i></div>
+          <h3>PEFT · LoRA · QLoRA</h3>
+          <ul>
+            <li><b>LoRA</b> → base congelada + pequenas matrizes treináveis</li>
+            <li><b>QLoRA</b> → base quantizada em 4 bits + adaptadores LoRA</li>
+            <li>Menos memória e menos recursos</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="foot"><span>Fine-Tuning · LoRA · QLoRA</span><span><b class="n"></b> / 25</span></div>
+  </section>
+
+  <!-- ============ 20 · FRAMEWORKS DE AGENTES ============ -->
+  <section class="slide" data-scene="s20fw">
+    <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Frameworks de agentes</span>
+      <h2 class="reveal" style="--i:1">Mesmo problema, <span class="hl">três filosofias</span>.</h2>
+    </div>
+    <div class="body">
+      <div class="grid3" style="align-items:stretch">
+        <div class="card reveal s06c" style="--i:2;--c:var(--orange);border-color:var(--mira-icon-border)">
+          <div class="ico" style="margin-bottom:22px;--c:var(--orange)"><i data-lucide="git-branch"></i></div>
+          <h3>LangGraph <span class="pill" style="color:var(--orange);font-size:17px">nosso projeto</span></h3>
+          <ul>
+            <li><b>Grafo de estados</b> com nós e arestas</li>
+            <li><b>Ciclos</b> e fluxos condicionais</li>
+            <li><b>Controle total</b> da execução</li>
+          </ul>
+        </div>
+        <div class="card reveal s06c" style="--i:3;--c:var(--purple)">
+          <div class="ico" style="margin-bottom:22px;--c:var(--purple)"><i data-lucide="users"></i></div>
+          <h3>CrewAI</h3>
+          <ul>
+            <li><b>Equipe de papéis</b> bem definidos</li>
+            <li><b>Role · Goal · Backstory</b></li>
+            <li><b>Delegação</b> de tarefas entre agentes</li>
+          </ul>
+        </div>
+        <div class="card reveal s06c" style="--i:4;--c:var(--cyan)">
+          <div class="ico" style="margin-bottom:22px;--c:var(--cyan)"><i data-lucide="messages-square"></i></div>
+          <h3>AutoGen</h3>
+          <ul>
+            <li><b>Conversação</b> dinâmica</li>
+            <li><b>Colaboração</b> entre agentes</li>
+            <li>Orientado a diálogo multiagente</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="foot"><span>LangGraph · CrewAI · AutoGen</span><span><b class="n"></b> / 25</span></div>
+  </section>
+
+  <!-- ============ 21 · RAG EFICIENTE E COMO MEDIR ============ -->
+  <section class="slide" data-scene="s21rag">
+    <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Eficiência e avaliação</span>
+      <h2 class="reveal" style="--i:1">Banco vetorial <span class="hl">enxuto</span> e como medir.</h2>
+    </div>
+    <div class="body">
+      <div class="grid2">
+        <div class="card reveal"
+          style="--i:2;--c:var(--cyan);display:flex;flex-direction:column;justify-content:space-between">
+          <div>
+            <div class="row" style="align-items:center;gap:22px;margin-bottom:14px">
+              <div class="ico" style="--c:var(--cyan)"><i data-lucide="database"></i></div>
+              <h3 style="margin:0">Banco vetorial enxuto</h3>
+            </div>
+            <ul>
+              <li>Vetoriza <b>resumos ou fragmentos relevantes</b></li>
+              <li>Conteúdo original em <b>banco relacional/documental</b>, recuperado por <b>Document ID</b></li>
+            </ul>
+          </div>
+          <div
+            style="display:flex;align-items:center;gap:18px;padding:22px 26px;border-radius:18px;background:var(--mira-pill-bg);border:1px solid var(--mira-card-border)">
+            <span class="pill" style="color:var(--cyan)">Vetor leve</span>
+            <span
+              style="flex:1;height:3px;background:linear-gradient(90deg,var(--cyan),var(--orange));position:relative;overflow:hidden"><i
+                style="position:absolute;inset:0;background:var(--ink);width:35%;animation:idFlow 2.4s ease-in-out infinite"></i></span>
+            <span class="mono" style="font-size:20px;color:var(--orange);font-weight:700">Document ID</span>
+            <span class="pill" style="color:var(--green)">Texto original</span>
+          </div>
+        </div>
+        <div class="card reveal"
+          style="--i:3;--c:var(--green);display:flex;flex-direction:column;justify-content:space-between">
+          <div>
+            <div class="row" style="align-items:center;gap:22px;margin-bottom:14px">
+              <div class="ico" style="--c:var(--green)"><i data-lucide="bar-chart-3"></i></div>
+              <h3 style="margin:0">Como medir o RAG</h3>
+            </div>
+            <ul>
+              <li><b>Hit Rate</b> → achou o trecho relevante?</li>
+              <li><b>MRR</b> (<i>Mean Reciprocal Rank</i>) → em que posição ele apareceu?</li>
+            </ul>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div
+              style="display:flex;align-items:center;gap:16px;padding:14px 20px;border-radius:14px;border:1px solid var(--green);background:color-mix(in srgb,var(--green) 14%,transparent);animation:mrrPulse 3s ease-in-out infinite">
+              <b class="mono" style="color:var(--green);font-size:22px">#1</b><span
+                style="font-size:22px;color:var(--ink);flex:1">Trecho relevante no topo</span><span class="mono"
+                style="color:var(--green);font-size:22px;font-weight:700">MRR = 1.0</span></div>
+            <div
+              style="display:flex;align-items:center;gap:16px;padding:12px 20px;border-radius:14px;background:var(--mira-pill-bg);opacity:.55">
+              <b class="mono" style="font-size:20px">#2</b><span
+                style="font-size:20px;color:var(--soft);flex:1">Candidato secundário</span><span class="mono"
+                style="font-size:20px">0.50</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <style>
+      @keyframes idFlow {
+        0% {
+          transform: translateX(-100%)
+        }
+
+        100% {
+          transform: translateX(300%)
+        }
+      }
+
+      @keyframes mrrPulse {
+
+        0%,
+        100% {
+          box-shadow: 0 0 0 transparent
+        }
+
+        50% {
+          box-shadow: 0 0 28px color-mix(in srgb, var(--green) 35%, transparent)
+        }
+      }
+    </style>
+    <div class="foot"><span>Document ID · Hit Rate · MRR</span><span><b class="n"></b> / 25</span></div>
+  </section>
+
+  <!-- ============ 22 · RACIOCÍNIO E DECISÃO ============ -->
+  <section class="slide" data-scene="s22rea">
+    <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Raciocínio e decisão</span>
+      <h2 class="reveal" style="--i:1">Como o agente <span class="hl">pensa</span>.</h2>
+    </div>
+    <div class="body">
+      <div class="grid2">
+        <div style="display:flex;flex-direction:column;gap:26px">
+          <div class="card reveal" style="--i:2;--c:var(--purple);padding:30px 38px">
+            <h3>Lógica do agente</h3>
+            <ul>
+              <li><b>Dedutivo</b> → regra → caso</li>
+              <li><b>Indutivo</b> → exemplos → padrão</li>
+              <li><b>Abdutivo</b> → observação → hipótese</li>
+            </ul>
+          </div>
+          <div class="card reveal" style="--i:3;--c:var(--cyan);padding:30px 38px">
+            <h3>CoT & Ciclo ReAct</h3>
+            <ul>
+              <li><b>CoT:</b> Zero-shot ("passo a passo") · Few-shot (exemplos)</li>
+              <li><b>ReAct:</b> Pensar → Agir → Observar → Repetir</li>
+            </ul>
+          </div>
+        </div>
+        <div class="card reveal"
+          style="--i:4;--c:var(--orange);display:flex;flex-direction:column;justify-content:space-between">
+          <div>
+            <div class="row" style="align-items:center;gap:22px;margin-bottom:14px">
+              <div class="ico" style="--c:var(--orange)"><i data-lucide="cpu"></i></div>
+              <h3 style="margin:0">RPA × Agente × LAM</h3>
+            </div>
+            <ul>
+              <li><b>RPA</b> → regras fixas</li>
+              <li><b>Agente</b> → raciocina e decide</li>
+              <li><b>LAM</b> → age em interfaces</li>
+            </ul>
+          </div>
+          <div
+            style="display:flex;gap:14px;align-items:center;justify-content:space-between;padding-top:20px;border-top:1px solid var(--mira-card-border)">
+            <span class="pill react-step" style="--rs:0s">Pensar</span>
+            <span style="color:var(--softer)">→</span>
+            <span class="pill react-step" style="--rs:1.2s">Agir</span>
+            <span style="color:var(--softer)">→</span>
+            <span class="pill react-step" style="--rs:2.4s">Observar</span>
+            <span style="color:var(--softer)">→</span>
+            <span class="pill react-step" style="--rs:3.6s">Repetir</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <style>
+      .slide.active .react-step {
+        animation: rStep 4.8s infinite;
+        animation-delay: var(--rs)
+      }
+
+      @keyframes rStep {
+
+        0%,
+        28%,
+        100% {
+          border-color: var(--mira-pill-border);
+          color: var(--soft);
+          background: var(--mira-pill-bg)
+        }
+
+        6%,
+        20% {
+          border-color: var(--orange);
+          color: var(--ink);
+          background: var(--mira-icon-bg);
+          box-shadow: 0 0 22px var(--mira-glow-strong)
+        }
+      }
+    </style>
+    <div class="foot"><span>Lógica · CoT · ReAct · LAM</span><span><b class="n"></b> / 25</span></div>
+  </section>
+
+  <!-- ============ 23 · OBSERVABILIDADE ============ -->
+  <section class="slide" data-scene="s23obs">
+    <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Observabilidade</span>
+      <h2 class="reveal" style="--i:1">Ver <span class="hl">o que</span> o agente fez.</h2>
+      <p class="sub reveal" style="--i:2">Pilares: <b>Traces · Logs · Metrics</b></p>
+    </div>
+    <div class="body">
+      <div class="grid2" style="margin-top:16px;height:calc(100% - 16px)">
+        <div class="card reveal"
+          style="--i:3;--c:var(--cyan);display:flex;flex-direction:column;justify-content:space-between">
+          <div>
+            <div class="row" style="align-items:center;gap:22px;margin-bottom:14px">
+              <div class="ico" style="--c:var(--cyan)"><i data-lucide="activity"></i></div>
+              <h3 style="margin:0">Ferramentas</h3>
+            </div>
+            <ul>
+              <li><b>LangSmith</b> → rastreamento de LLMs, agentes e ferramentas</li>
+              <li><b>Pydantic Logfire</b> → observabilidade de aplicações Python com OpenTelemetry</li>
+            </ul>
+          </div>
+          <div id="s23tr" style="display:flex;flex-direction:column;gap:10px;padding-top:18px">
+            <i style="--w:88%;--c:var(--cyan);--d:0s"></i>
+            <i style="--w:62%;--c:var(--orange);--d:.35s"></i>
+            <i style="--w:74%;--c:var(--green);--d:.7s"></i>
+          </div>
+        </div>
+        <div class="card reveal" style="--i:4;--c:var(--orange)">
+          <div class="row" style="align-items:center;gap:22px;margin-bottom:14px">
+            <div class="ico" style="--c:var(--orange)"><i data-lucide="gauge"></i></div>
+            <h3 style="margin:0">Métricas</h3>
+          </div>
+          <ul>
+            <li><b>Latência</b> → total e por etapa</li>
+            <li><b>Tokens e custo</b> → consumo de <i>prompt</i> e <i>completion</i></li>
+            <li><b>Falhas de tools</b> → erros em APIs e ferramentas</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <style>
+      #s23tr i {
+        display: block;
+        height: 14px;
+        border-radius: 9px;
+        background: var(--c);
+        opacity: .8;
+        width: 0;
+        animation: tr 5s ease-in-out infinite;
+        animation-delay: var(--d)
+      }
+    </style>
+    <div class="foot"><span>Traces · Logs · Metrics</span><span><b class="n"></b> / 25</span></div>
+  </section>
+
+  <!-- ============ 24 · EXPLICABILIDADE E GUARDRAILS ============ -->
+  <section class="slide" data-scene="s24exp">
+    <div class="hd"><span class="kick reveal" style="--i:0"><i></i>Explicabilidade e Guardrails</span>
+      <h2 class="reveal" style="--i:1">Entender e <span class="hl">proteger</span>.</h2>
+    </div>
+    <div class="body">
+      <div class="grid2">
+        <div class="card reveal"
+          style="--i:2;--c:var(--purple);display:flex;flex-direction:column;justify-content:space-between">
+          <div>
+            <div class="row" style="align-items:center;gap:22px;margin-bottom:14px">
+              <div class="ico" style="--c:var(--purple)"><i data-lucide="eye"></i></div>
+              <h3 style="margin:0">Explicabilidade <span class="pill" style="color:var(--purple);font-size:17px">por quê
+                  decidiu</span></h3>
+            </div>
+            <ul>
+              <li><b>LIME</b> → local, aproximação linear</li>
+              <li><b>SHAP</b> → Teoria dos Jogos (Shapley), local e global</li>
+            </ul>
+          </div>
+          <div
+            style="display:flex;flex-direction:column;gap:12px;padding:20px 24px;border-radius:18px;background:var(--mira-pill-bg);border:1px solid var(--mira-card-border)">
+            <div style="display:flex;align-items:center;gap:14px"><span class="mono"
+                style="font-size:19px;width:140px;color:var(--soft)">Orçamento</span>
+              <div style="flex:1;height:12px;border-radius:99px;background:var(--mira-card-bg);overflow:hidden"><i
+                  style="display:block;height:100%;background:var(--green);animation:shapBar 4s ease-in-out infinite;--sw:82%"></i>
+              </div><span class="mono" style="font-size:19px;color:var(--green)">+0.42</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:14px"><span class="mono"
+                style="font-size:19px;width:140px;color:var(--soft)">Clima chuva</span>
+              <div style="flex:1;height:12px;border-radius:99px;background:var(--mira-card-bg);overflow:hidden"><i
+                  style="display:block;height:100%;background:var(--red);animation:shapBar 4s ease-in-out infinite .6s;--sw:48%"></i>
+              </div><span class="mono" style="font-size:19px;color:var(--red)">−0.21</span>
+            </div>
+          </div>
+        </div>
+        <div class="card reveal" style="--i:3;--c:var(--green)">
+          <div class="row" style="align-items:center;gap:22px;margin-bottom:14px">
+            <div class="ico" style="--c:var(--green)"><i data-lucide="shield-check"></i></div>
+            <h3 style="margin:0">Guardrails: 4 barreiras</h3>
+          </div>
+          <ul>
+            <li><b>1. Entrada</b> → prompt injection, PII, fora de escopo</li>
+            <li><b>2. Saída</b> → JSON válido, alucinação, conteúdo</li>
+            <li><b>3. Procedimental</b> → limite de passos, orçamento, comandos perigosos</li>
+            <li><b>4. Supervisão</b> → auditoria, anomalias, Human-in-the-Loop</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <style>
+      @keyframes shapBar {
+
+        0%,
+        100% {
+          width: 20%
+        }
+
+        50% {
+          width: var(--sw)
+        }
+      }
+    </style>
+    <div class="foot"><span>LIME · SHAP · 4 Barreiras</span><span><b class="n"></b> / 25</span></div>
+  </section>
+
+  <!-- ============ 25 · FECHAMENTO ============ -->
+  <section class="slide" data-scene="s25">
+    <div id="s25orb" style="position:absolute;inset:0;z-index:1"></div>
+    <div style="position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);z-index:2;text-align:center">
+      <span class="kick reveal" style="--i:0"><i></i>Voltando ao começo</span>
+      <h2 class="reveal" style="--i:1;margin:30px auto 0;font-size:96px;max-width:1300px">A mágica é <span
+          class="hl">engenharia</span>.</h2>
+      <p class="sub reveal" style="--i:2;margin:26px auto 0;text-align:center;max-width:1200px">Um roteiro inteligente
+        para Santiago, com informações confiáveis e dentro do orçamento.</p>
+      <p class="reveal" style="--i:3;font:700 44px 'Inter', sans-serif;color:var(--orange);margin-top:54px">Obrigada!
+      </p>
+      <p class="reveal" style="--i:4;font:500 24px 'Inter', sans-serif;color:var(--soft);margin-top:12px">Brenda Prestes
+      </p>
+    </div>
+  </section>
+
+  <script>
+    /* ============ INFRA ============ */
+    const SC = {}, NS = 'http://www.w3.org/2000/svg';
+    const $ = s => document.querySelector(s);
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const ease = q => q * q * (3 - 2 * q);
+    const lerp = (a, b, q) => a + (b - a) * q;
+    function el(tag, at, parent) { const e = document.createElementNS(NS, tag); for (const k in at) e.setAttribute(k, at[k]); if (parent) parent.appendChild(e); return e; }
+    function mkScene(id, fn) {
+      let run = 0;
+      SC[id] = {
+        start() { const my = ++run; const dead = () => run !== my; (async () => { while (!dead()) { try { await fn(dead); } catch (e) { console.error(id, e); await sleep(500); } await sleep(30); } })(); },
+        stop() { run++; }
+      };
     }
-  });
-})();
-
-/* ============ 12 · re-ranking ============ */
-(function () {
-  const items = [['Parque infantil · Bicentenário', 92, 18], ['Vinícola Santa Rita · degustação', 88, 96], ['Hotel com piscina kids', 85, 22], ['Teleférico · San Cristóbal', 83, 90], ['Museu · Bellas Artes', 79, 71], ['Bar com música ao vivo', 77, 64], ['Vinícola Concha y Toro', 74, 93], ['Zoológico · Metropolitano', 71, 12]];
-  let lst, els;
-  const build = () => { lst = $('#s12list'); lst.innerHTML = ''; els = items.map((it, i) => { const d = document.createElement('div'); d.style.cssText = `position:absolute;left:0;right:0;height:56px;display:flex;align-items:center;gap:18px;padding:0 20px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);font:600 22px Inter;transition:all .9s cubic-bezier(.22,1,.36,1)`; d.innerHTML = `<span style="flex:1">${it[0]}</span><b class="mono" style="color:var(--cyan)">${it[1]}</b>`; lst.appendChild(d); return d; }); };
-  mkScene('s12', async dead => {
-    build(); const lbl = $('#s12lbl');
-    const place = order => order.forEach((idx, pos) => { els[idx].style.top = (pos * 64) + 'px'; });
-    place(items.map((_, i) => i)); lbl.textContent = 'busca rápida · score aproximado'; await sleep(2600); if (dead()) return;
-    const order = items.map((_, i) => i).sort((a, b) => items[b][2] - items[a][2]);
-    items.forEach((it, i) => { els[i].querySelector('b').textContent = it[2]; els[i].querySelector('b').style.color = 'var(--orange)'; });
-    lbl.textContent = 'cross-encoder · perfil casal'; place(order);
-    await sleep(900); order.forEach((idx, pos) => { if (pos < 3) { els[idx].style.background = 'rgba(53,208,127,.18)'; els[idx].style.borderColor = 'var(--green)'; } else els[idx].style.opacity = .3; });
-    await sleep(4200);
-  });
-})();
-
-/* ============ 13 · árvore do RAG ============ */
-(function () {
-  const svg = $('#s13svg'); svg.setAttribute('viewBox', '0 0 1680 700');
-  const br = [
-    ['CRAG', 'avalia e corrige a busca antes de gerar', '#c084fc'],
-    ['CAG', 'pré-carrega o conhecimento, sem buscar', '#38bdf8'],
-    ['GraphRAG', 'grafos de conhecimento e entidades', '#35D07F'],
-    ['Agentic RAG', 'um agente decide fonte, estratégia e ação', '#FF904D'],
-    ['Adaptive RAG', 'escolhe a estratégia pela complexidade', '#FFC766'],
-    ['Self-RAG', 'decide se busca e revisa a própria resposta', '#f472b6'],
-    ['Multimodal RAG', 'texto, imagem e áudio no mesmo fluxo', '#7dd3fc']
-  ];
-  const cx = 190, cy = 350, H = 92, y0 = 350 - (br.length - 1) * H / 2;
-  const items = br.map((b, i) => {
-    const y = y0 + i * H, ex = 700;
-    const isStar = (i === 3);
-    const w = isStar ? 290 : 250;
-    const p = el('path', { d: `M${cx + 90} ${cy} C ${cx + 330} ${cy}, ${ex - 260} ${y}, ${ex} ${y}`, fill: 'none', stroke: b[2], 'stroke-width': isStar ? 6 : 5, 'stroke-linecap': 'round', opacity: .85 }, svg);
-    const g = el('g', { transform: `translate(${ex + 10},${y})`, style: 'transition:all .5s' }, svg);
-    el('rect', { x: 0, y: -34, width: w, height: 68, rx: 34, fill: isStar ? '#1f130b' : '#10131b', stroke: b[2], 'stroke-width': isStar ? 3.5 : 2.5, style: isStar ? 'filter:drop-shadow(0 0 22px rgba(255,144,77,.6))' : '' }, g);
-    if (isStar) {
-      text(g, w / 2, 0, 'nd-t', b[0], { 'text-anchor': 'middle', style: 'font-size:24px;fill:#fff;font-weight:800' });
-      text(g, w / 2, 22, 'nd-s', '★ NOSSO PROJETO', { 'text-anchor': 'middle', style: 'font-size:15px;fill:#FF904D;font-weight:700;letter-spacing:1.5px' });
-    } else {
-      text(g, w / 2, 9, 'nd-t', b[0], { 'text-anchor': 'middle', style: 'font-size:25px' });
+    function tween(ms, f, dead) { return new Promise(r => { const t0 = performance.now(); (function s(t) { if (dead()) return r(); const k = Math.min(1, (t - t0) / ms); f(k); k < 1 ? requestAnimationFrame(s) : r(); })(t0); }); }
+    function frameLoop(id, T, f) {
+      let run = 0;
+      SC[id] = { start() { const my = ++run; const t0 = performance.now(); (function s(t) { if (run !== my) return; f(((t - t0) / 1000) % T / T); requestAnimationFrame(s); })(t0); }, stop() { run++; } };
     }
-    text(svg, 1030, y + 8, 'nd-s', b[1], { style: 'font-size:25px;fill:rgba(255,255,255,.72)' });
-    return { p, g, c: b[2], y };
-  });
-  const root = el('g', { transform: `translate(${cx},${cy})` }, svg);
-  el('circle', { r: 92, fill: '#10131b', stroke: '#fff', 'stroke-width': 3, style: 'filter:drop-shadow(0 0 22px rgba(255,144,77,.5))' }, root);
-  el('circle', { r: 112, fill: 'none', stroke: '#FF904D', 'stroke-width': 2, 'stroke-dasharray': '6 10', style: 'transform-origin:center;animation:spin 14s linear infinite' }, root);
-  text(root, 0, 12, 'nd-t', 'RAG', { 'text-anchor': 'middle', style: 'font-size:46px' });
-  const dot = el('circle', { r: 10, fill: '#fff', class: 'tok', style: 'color:#fff;opacity:0' }, svg);
-  mkScene('s13', async dead => {
-    const Ls = items.map(it => it.p.getTotalLength());
-    items.forEach((it, i) => { it.p.style.strokeDasharray = Ls[i]; it.p.style.strokeDashoffset = Ls[i]; it.p.style.opacity = .85; it.g.style.opacity = 0; });
-    await sleep(300);
-    await tween(1800, k => { items.forEach((it, i) => { const q = ease(Math.min(1, Math.max(0, (k * 1.5 - i * .1) / 1))); it.p.style.strokeDashoffset = Ls[i] * (1 - q); it.g.style.opacity = q > .9 ? 1 : 0; }); }, dead);
-    if (dead()) return; items.forEach(it => { it.p.style.strokeDashoffset = 0; it.g.style.opacity = 1; });
-    await sleep(800); if (dead()) return;
-    while (!dead()) { for (let i = 0; i < items.length; i++) { if (dead()) return; items.forEach(it => { it.p.style.opacity = .3; it.g.style.transform = it.g.style.transform.replace(/ scale\([^)]*\)/, ''); }); items[i].p.style.opacity = 1; await along(items[i].p, dot, 1100, dead); dot.style.opacity = 0; await sleep(i === 3 ? 1700 : 700); } await sleep(600); items.forEach(it => it.p.style.opacity = .85); }
-  });
-})();
+    function node(svg, id, cx, cy, w, h, title, sub, color) {
+      const g = el('g', { class: 'nd', id, transform: `translate(${cx - w / 2},${cy - h / 2})` }, svg);
+      el('rect', { width: w, height: h, rx: 22, class: 'nd-box', style: `--c:${color}` }, g);
+      el('text', { x: w / 2, y: sub ? h / 2 - 2 : h / 2 + 9, class: 'nd-t', 'text-anchor': 'middle' }, g).textContent = title;
+      if (sub) el('text', { x: w / 2, y: h / 2 + 28, class: 'nd-s', 'text-anchor': 'middle' }, g).textContent = sub;
+      return g;
+    }
+    function edge(svg, id, d, color, solid) { return el('path', { id, d, class: 'edge' + (solid ? ' solid' : ''), style: `--c:${color}` }, svg); }
+    function tok(svg, color) { const c = el('circle', { r: 11, fill: color, class: 'tok', style: `color:${color};opacity:0` }, svg); return c; }
+    function along(p, t, ms, dead) { const L = p.getTotalLength(); t.style.opacity = 1; return tween(ms, k => { const q = p.getPointAtLength(L * ease(k)); t.setAttribute('cx', q.x); t.setAttribute('cy', q.y); }, dead); }
+    function hit(id, ms = 900) { const n = document.getElementById(id); if (!n) return; n.classList.add('on'); setTimeout(() => n.classList.remove('on'), ms); }
+    function text(svg, x, y, cls, content, extra = {}) { const t = el('text', { x, y, class: cls, ...extra }, svg); t.textContent = content; return t; }
 
-/* ============ 14 · memória ============ */
-mkScene('s14', async dead => {
-  const A = $('#s14a'), B = $('#s14b'), ca = $('#s14ca'), cb = $('#s14cb'); A.innerHTML = ''; B.innerHTML = '';
-  const msgs = ['Roteiro de 4 dias em Santiago, casal, R$ 5.000', 'Troque o jantar do dia 2 por uma pizzaria', 'E se chover no dia 3?', 'Qual o custo total agora?', 'Mantenha o hotel parceiro', 'Pode incluir uma vinícola?', 'Quanto sobra do orçamento?'];
-  const hist = [];
-  await sleep(1000);
-  for (const m of msgs) { if (dead()) return; hist.push(m); const mk = t => { const d = document.createElement('div'); d.textContent = t; return d; };
-    A.appendChild(mk(m)); const win = hist.slice(-3); B.innerHTML = ''; win.forEach(t => B.appendChild(mk(t)));
-    ca.textContent = `${hist.length} mensagens no prompt · custo ↑`; cb.textContent = `${win.length} mensagens (K = 3) · custo estável`; await sleep(1700); }
-  await sleep(2500);
-});
+    /* ============ 01 · capa: pin percorre a rota ============ */
+    frameLoop('s01', 9, q => { const p = $('#route1'); const L = p.getTotalLength(); const pt = p.getPointAtLength(L * ease(Math.min(1, q * 1.15))); const c = $('#pin1'); c.setAttribute('cx', pt.x); c.setAttribute('cy', pt.y); });
 
-/* ============ 15 · fluxo completo ============ */
-(function () {
-  const svg = $('#s15svg'); svg.setAttribute('viewBox', '0 0 1700 620');
-  const Yc = 310, ag = [130, 310, 490];
-  node(svg, 'f0', 95, Yc, 150, 130, 'Usuário', '+ memória (K=3)', '#FF904D');
-  node(svg, 'fg_in', 260, Yc, 150, 100, 'Guardrails', 'entrada', '#c084fc');
-  node(svg, 'f1', 430, Yc, 150, 100, 'Roteador', 'LangGraph', '#FF904D');
-  const names = [['Nó Guia', 'RAG + re-ranking', '#FF904D'], ['Nó Clima', 'API web', '#38bdf8'], ['Nó Financeiro', 'calculadora', '#35D07F']];
-  const tools = ['Banco vetorial', 'Busca na web', 'Cálculo'];
-  names.forEach((n, i) => { edge(svg, 'ra' + i, `M430 ${Yc} L670 ${ag[i]}`, n[2]); edge(svg, 'at' + i, `M670 ${ag[i]} L970 ${ag[i]}`, n[2]); edge(svg, 'tc' + i, `M970 ${ag[i]} L1220 ${Yc}`, n[2]); });
-  edge(svg, 'u_g', `M95 ${Yc} L260 ${Yc}`, '#c084fc'); edge(svg, 'g_r', `M260 ${Yc} L430 ${Yc}`, '#FF904D');
-  edge(svg, 'cg', `M1220 ${Yc} L1410 ${Yc}`, '#FFC766'); edge(svg, 'gr', `M1410 ${Yc} L1585 ${Yc}`, '#35D07F');
-  edge(svg, 'back', `M1220 ${Yc - 60} L1220 40 L670 40 L670 ${ag[0] - 52}`, '#ff5d6c');
-  names.forEach((n, i) => { node(svg, 'fa' + i, 670, ag[i], 210, 94, n[0], n[1], n[2]); node(svg, 'ft' + i, 970, ag[i], 210, 84, tools[i], '', n[2]); });
-  node(svg, 'f5', 1220, Yc, 140, 100, '≤ R$ 5k?', 'validação', '#FFC766');
-  node(svg, 'f6', 1410, Yc, 160, 100, 'Guardrails', 'saída', '#c084fc'); node(svg, 'f7', 1585, Yc, 130, 100, 'Roteiro', 'final', '#35D07F');
-  text(svg, 945, 26, 'nd-s', 'loop de correção se exceder o orçamento', { 'text-anchor': 'middle', style: 'fill:#ff8f99;font-size:20px;font-weight:600' });
-  const cap = text(svg, 850, 600, 'cap', '', { style: 'font-size:26px' });
-  const mkT = c => tok(svg, c); const TT = [mkT('#FF904D'), mkT('#38bdf8'), mkT('#35D07F')], T0 = mkT('#fff'), T1 = mkT('#FFC766');
-  mkScene('s15', async dead => {
-    const P = id => document.getElementById(id); [...TT, T0, T1].forEach(t => t.style.opacity = 0);
-    cap.textContent = 'a pergunta entra, com o histórico recente'; await sleep(800); if (dead()) return;
-    await along(P('u_g'), T0, 500, dead); hit('fg_in'); cap.textContent = 'guardrail de entrada: valida escopo e dados'; await sleep(500);
-    await along(P('g_r'), T0, 500, dead); hit('f1'); T0.style.opacity = 0; cap.textContent = 'o roteador direciona a execução para os nós especialistas';
-    await Promise.all(names.map(async (n, i) => { await sleep(i * 250); await along(P('ra' + i), TT[i], 900, dead); hit('fa' + i); await along(P('at' + i), TT[i], 900, dead); hit('ft' + i); await along(P('tc' + i), TT[i], 900, dead); TT[i].style.opacity = 0; }));
-    if (dead()) return; hit('f5'); cap.textContent = 'o estado reúne tudo e valida o orçamento';
-    await sleep(700);
-    await along(P('back'), T1, 1600, dead); T1.style.opacity = 0; hit('fa0'); cap.textContent = 'excedeu o orçamento? o loop corrige com o Guia'; await sleep(900);
-    await along(P('cg'), T1, 650, dead); hit('f6'); cap.textContent = 'guardrail de saída: valida qualidade e regras';
-    await along(P('gr'), T1, 600, dead); hit('f7', 1800); T1.style.opacity = 0; cap.textContent = 'roteiro validado entregue ao usuário';
-    await sleep(3000);
-  });
-})();
+    /* ============ 02 · demonstração ============ */
+    mkScene('s02', async dead => {
+      const msg = $('#s02msg'), dots = $('#s02dots'), cards = document.querySelectorAll('.r02');
+      const full = 'Quero viajar para Santiago em julho, 4 dias. Somos um casal e nosso orçamento é R$ 5.000.';
+      msg.textContent = ''; dots.style.opacity = 0;
+      cards.forEach(c => { c.style.opacity = 0; c.style.transform = 'translateX(60px)'; c.style.transition = 'none'; });
+      await sleep(600); if (dead()) return;
+      for (let i = 1; i <= full.length; i++) { if (dead()) return; msg.textContent = full.slice(0, i); await sleep(34); }
+      dots.style.opacity = 1; await sleep(1300); dots.style.opacity = 0;
+      for (const c of cards) { if (dead()) return; c.style.transition = 'all .7s cubic-bezier(.22,1,.36,1)'; c.style.opacity = 1; c.style.transform = 'none'; await sleep(650); }
+      await sleep(5200);
+    });
 
-/* ============ 16 · MCP ============ */
-(function () {
-  const svg = $('#s16svg'); svg.setAttribute('viewBox', '0 0 1680 240'); const Y = 120;
-  const n = [[120, 'Usuário', '', '#FF904D'], [430, 'Host', 'o app do agente', '#FF904D'], [740, 'Cliente MCP', '', '#38bdf8'], [1050, 'Servidor MCP', 'STDIO · HTTP/SSE', '#c084fc'], [1420, 'Clima · Guia · Cálculo', 'ferramentas e dados', '#35D07F']];
-  for (let i = 0; i < 4; i++) edge(svg, 'm' + i, `M${n[i][0]} ${Y} L${n[i + 1][0]} ${Y}`, n[i + 1][3]);
-  n.forEach((x, i) => node(svg, 'mn' + i, x[0], Y, i === 4 ? 320 : 220, 110, x[1], x[2], x[3]));
-  const t = tok(svg, '#fff');
-  mkScene('s16', async dead => { for (let i = 0; i < 4; i++) { if (dead()) return; await along(document.getElementById('m' + i), t, 900, dead); hit('mn' + (i + 1)); } t.style.opacity = 0; await sleep(1200); });
-})();
+    /* ============ 03 · arquitetura geral ============ */
+    (function () {
+      const svg = $('#s03svg'); svg.setAttribute('viewBox', '0 0 1680 560');
+      edge(svg, 'a1', 'M170 280 L400 280', '#FF904D'); edge(svg, 'a2', 'M590 280 L720 140', '#FF904D'); edge(svg, 'a3', 'M590 280 L720 280', '#38bdf8'); edge(svg, 'a4', 'M590 280 L720 420', '#35D07F');
+      edge(svg, 'a5', 'M960 140 L1170 280', '#FF904D'); edge(svg, 'a6', 'M960 280 L1170 280', '#38bdf8'); edge(svg, 'a7', 'M960 420 L1170 280', '#35D07F');
+      node(svg, 'n1', 100, 280, 180, 110, 'Usuário', 'pedido livre', '#FF904D');
+      node(svg, 'n2', 500, 280, 200, 130, 'LangGraph', 'orquestra o fluxo', '#FF904D');
+      node(svg, 'n3', 840, 140, 240, 100, 'Nó Guia', 'RAG no guia', '#FF904D');
+      node(svg, 'n4', 840, 280, 240, 100, 'Nó Clima', 'API web', '#38bdf8');
+      node(svg, 'n5', 840, 420, 240, 100, 'Nó Financeiro', 'ferramenta de cálculo', '#35D07F');
+      node(svg, 'n6', 1290, 280, 220, 130, 'Roteiro', 'validado', '#c084fc');
+      const t = [tok(svg, '#FF904D'), tok(svg, '#38bdf8'), tok(svg, '#35D07F')];
+      const paths = [['a1', 'a2', 'a5'], ['a1', 'a3', 'a6'], ['a1', 'a4', 'a7']];
+      frameLoop('s03', 6, q => {
+        t.forEach((tk, i) => {
+          const seg = paths[i].map(id => document.getElementById(id));
+          const lens = seg.map(s => s.getTotalLength()); const tot = lens.reduce((a, b) => a + b, 0);
+          let d = ((q + i * .12) % 1) * tot * 1.0; let k = 0; while (k < 2 && d > lens[k]) { d -= lens[k]; k++; }
+          const pt = seg[k].getPointAtLength(Math.min(d, lens[k])); tk.style.opacity = 1; tk.setAttribute('cx', pt.x); tk.setAttribute('cy', pt.y);
+        });
+      });
+    })();
 
-/* ============ 18 · órbita final ============ */
-(function () {
-  const box = $('#s18orb'); const labs = ['Tokens', 'Chunks', 'Embeddings', 'Banco vetorial', 'Re-ranking', 'RAG', 'LangGraph', 'Agentes', 'MCP', 'Guardrails'];
-  const els = labs.map((l, i) => { const d = document.createElement('div'); d.textContent = l; d.style.cssText = `position:absolute;left:0;top:0;font:600 24px var(--mono);padding:10px 20px;border-radius:99px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.05);color:${['#FF904D', '#c084fc', '#38bdf8', '#35D07F', '#FFC766'][i % 5]}`; box.appendChild(d); return d; });
-  frameLoop('s18', 40, q => { els.forEach((d, i) => { const a = q * 6.2832 + i * 6.2832 / els.length; const x = 960 + Math.cos(a) * 760, y = 540 + Math.sin(a) * 400; d.style.transform = `translate(${x}px,${y}px) translate(-50%,-50%)`; d.style.opacity = .85; }); });
-})();
+    /* ============ 05 · LangGraph (loop de correção) ============ */
+    (function () {
+      const svg = $('#s05svg'); svg.setAttribute('viewBox', '0 0 1700 560'); const Y = 330;
+      const X = [100, 315, 530, 745, 960, 1175, 1390, 1605];
+      const col = ['#FF904D', '#FF904D', '#FF904D', '#38bdf8', '#35D07F', '#FFC766', '#c084fc', '#35D07F'];
+      for (let i = 0; i < 7; i++) edge(svg, 'e' + i, `M${X[i]} ${Y} L${X[i + 1]} ${Y}`, col[i + 1]);
+      edge(svg, 'loop', `M${X[5]} ${Y} L${X[5]} 150 L${X[2]} 150 L${X[2]} ${Y}`, '#ff5d6c');
+      node(svg, 'g0', X[0], Y, 170, 110, 'Usuário', '', col[0]); node(svg, 'g1', X[1], Y, 170, 110, 'Roteador', 'LLM', col[1]);
+      node(svg, 'g2', X[2], Y, 170, 110, 'Guia', 'RAG', col[2]); node(svg, 'g3', X[3], Y, 170, 110, 'Clima', 'web', col[3]);
+      node(svg, 'g4', X[4], Y, 170, 110, 'Finanças', 'cálculo', col[4]);
+      const dg = el('g', { id: 'g5', class: 'nd' }, svg);
+      el('polygon', { points: `${X[5]},${Y - 100} ${X[5] + 100},${Y} ${X[5]},${Y + 100} ${X[5] - 100},${Y}`, class: 'nd-box', style: '--c:#FFC766' }, dg);
+      text(dg, X[5], Y + 8, 'nd-t', '≤ R$ 5.000?', { 'text-anchor': 'middle', style: 'font-size:22px' });
+      node(svg, 'g6', X[6], Y, 170, 110, 'Guardrails', 'segurança', col[6]); node(svg, 'g7', X[7], Y, 170, 110, 'Resposta', 'roteiro', col[7]);
+      text(svg, 850, 112, 'nd-s', 'aresta condicional: volta ao Guia se exceder o orçamento', { 'text-anchor': 'middle', style: 'font-size:22px;fill:#ff8f99' });
+      text(svg, 60, 70, 'nd-s', 'CUSTO NO ESTADO', { style: 'font-size:19px;letter-spacing:3px' });
+      const cost = text(svg, 60, 130, 'bigmono', 'R$ 0', { fill: '#fff' });
+      const verdict = text(svg, X[5], Y + 150, 'nd-t', '', { 'text-anchor': 'middle', style: 'font-size:26px' });
+      const cap = text(svg, 850, 520, 'cap', '');
+      const T = tok(svg, '#FFC766');
+      const countTo = (a, b, color, dead) => tween(700, k => { cost.textContent = 'R$ ' + Math.round(lerp(a, b, ease(k))).toLocaleString('pt-BR'); cost.setAttribute('fill', color); }, dead);
+      mkScene('s05', async dead => {
+        cost.textContent = 'R$ 0'; cost.setAttribute('fill', '#fff'); verdict.textContent = ''; cap.textContent = 'o pedido entra no grafo'; T.style.opacity = 0;
+        const P = id => document.getElementById(id);
+        await sleep(900); if (dead()) return;
+        await along(P('e0'), T, 700, dead); hit('g1'); cap.textContent = 'roteador decide quais nós acionar';
+        await along(P('e1'), T, 700, dead); hit('g2'); cap.textContent = 'Guia busca hotel e passeios de casal';
+        await along(P('e2'), T, 700, dead); hit('g3'); cap.textContent = 'Clima confere a previsão';
+        await along(P('e3'), T, 700, dead); hit('g4'); cap.textContent = 'Finanças soma o roteiro'; await countTo(0, 5200, '#ff5d6c', dead);
+        await along(P('e4'), T, 600, dead); hit('g5'); verdict.textContent = '✗ excedeu o orçamento'; verdict.setAttribute('fill', '#ff5d6c'); cap.textContent = 'excedeu o orçamento: a aresta condicional manda voltar';
+        await sleep(900); if (dead()) return;
+        await along(P('loop'), T, 2000, dead); hit('g2'); verdict.textContent = ''; cap.textContent = 'Guia troca hotel de R$ 2.500 pelo parceiro com cupom (R$ 1.950 · −R$ 550)';
+        await along(P('e2'), T, 600, dead); hit('g3'); await along(P('e3'), T, 600, dead); hit('g4'); await countTo(5200, 4650, '#35D07F', dead);
+        await along(P('e4'), T, 600, dead); hit('g5'); verdict.textContent = '✓ dentro do orçamento'; verdict.setAttribute('fill', '#35D07F'); cap.textContent = 'aprovado na segunda volta';
+        await sleep(500); if (dead()) return;
+        await along(P('e5'), T, 600, dead); hit('g6'); await along(P('e6'), T, 600, dead); hit('g7', 1800); cap.textContent = 'roteiro validado e entregue';
+        await sleep(2800);
+      });
+    })();
 
-/* ============ NAVEGAÇÃO ============ */
-const slides = [...document.querySelectorAll('.slide')]; let cur = -1;
-slides.forEach((s, i) => s.querySelectorAll('.n').forEach(n => n.textContent = String(i + 1).padStart(2, '0')));
-document.querySelectorAll('#s08tok .tk').forEach((t, i) => t.style.setProperty('--n', i));
-function fit() { document.documentElement.style.setProperty('--s', Math.min(innerWidth / 1920, innerHeight / 1080)); }
-function go(i) {
-  i = Math.max(0, Math.min(slides.length - 1, i)); if (i === cur) return;
-  if (cur >= 0) { slides[cur].classList.remove('active'); const o = SC[slides[cur].dataset.scene]; o && o.stop(); }
-  cur = i; const s = slides[i]; void s.offsetWidth; s.classList.add('active');
-  const sc = SC[s.dataset.scene]; sc && setTimeout(() => sc.start(), 650);
-  $('#cnt').textContent = (i + 1) + ' / ' + slides.length; $('#bar').style.width = ((i + 1) / slides.length * 100) + '%'; history.replaceState(null, '', '#' + (i + 1));
-}
-addEventListener('resize', fit); fit();
-addEventListener('keydown', e => {
-  if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter'].includes(e.key)) { e.preventDefault(); go(cur + 1); }
-  else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); go(cur - 1); }
-  else if (e.key === 'Home') go(0); else if (e.key === 'End') go(slides.length - 1);
-  else if (e.key.toLowerCase() === 'f') { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }
-});
-$('#next').onclick = () => go(cur + 1); $('#prev').onclick = () => go(cur - 1);
-let tx = 0; addEventListener('touchstart', e => tx = e.touches[0].clientX); addEventListener('touchend', e => { const d = e.changedTouches[0].clientX - tx; if (Math.abs(d) > 60) go(cur + (d < 0 ? 1 : -1)); });
-lucide.createIcons();
-go((parseInt(location.hash.slice(1)) || 1) - 1);
-</script>
-<script defer src="mira/mira-draw.js"></script>
+    /* ============ 07 · ingestão ============ */
+    (function () {
+      const svg = $('#s07svg'); svg.setAttribute('viewBox', '0 0 1700 620'); const Y = 300;
+      const st = [[140, 'PDF', 'guia de Santiago', '#FF904D'], [470, 'Chunking', 'corta em blocos', '#c084fc'], [800, 'Etiquetas', 'IA + Pydantic', '#FFC766'], [1130, 'Embedding', 'texto → números', '#38bdf8']];
+      [[162, 448], [492, 778], [822, 1108]].forEach(([a, b], i) => edge(svg, 'sx' + i, `M${a} ${Y} L${b} ${Y}`, '#ffffff'));
+      edge(svg, 'sx3', `M1152 ${Y} L1410 ${Y}`, '#ffffff');
+      st.forEach(([x, t, s, c]) => {
+        el('rect', { x: x - 22, y: Y - 195, width: 44, height: 390, rx: 22, fill: '#0e1119', stroke: c, 'stroke-opacity': .6, 'stroke-width': 2.5 }, svg);
+        text(svg, x, Y - 250, 'nd-t', t, { 'text-anchor': 'middle' });
+        text(svg, x, Y - 222, 'nd-s', s, { 'text-anchor': 'middle' });
+      });
+      const dbx = 1520, dby = Y - 40;
+      el('ellipse', { cx: dbx, cy: dby, rx: 100, ry: 30, fill: 'none', stroke: '#35D07F', 'stroke-width': 3 }, svg);
+      el('path', { d: `M${dbx - 100} ${dby} L${dbx - 100} ${dby + 150} A100 30 0 0 0 ${dbx + 100} ${dby + 150} L${dbx + 100} ${dby}`, fill: 'none', stroke: '#35D07F', 'stroke-width': 3 }, svg);
+      const rows = [0, 1, 2].map(i => el('rect', { x: dbx - 76, y: dby + 40 + i * 34, width: 152, height: 18, rx: 9, fill: '#35D07F', opacity: 0 }, svg));
+      text(svg, dbx, dby + 220, 'nd-t', 'Banco vetorial', { 'text-anchor': 'middle' });
+      const lab = [['Hotel · Lastarria', 'casal · hospedagem', '[0.48 −0.19 …]'], ['Vinícola · Maipo', 'casal · passeio', '[0.12  0.77 …]'], ['Restaurante kids', 'família · restaurante', '[−0.30 0.41 …]']];
+      const chips = lab.map((l, i) => {
+        const g = el('g', {}, svg); el('rect', { width: 230, height: 58, rx: 14, x: -115, y: -29, fill: '#171a24', stroke: ['#FF904D', '#c084fc', '#38bdf8'][i], 'stroke-width': 2.5 }, g);
+        const a = text(g, 0, 8, 'nd-t', l[0], { 'text-anchor': 'middle', style: 'font-size:20px' });
+        const b = text(g, 0, 56, 'nd-s', '', { 'text-anchor': 'middle', style: 'font-size:19px;fill:#FFC766' });
+        return { g, a, b, l };
+      });
+      const cap = text(svg, 850, 580, 'cap', '');
+      const pyd = text(svg, 800, Y + 235, 'nd-s', '', { 'text-anchor': 'middle', style: 'font-size:20px;fill:#35D07F' });
+      frameLoop('s07', 16, p => {
+        const stX = 140, cX = 470, tX = 800, eX = 1130; const off = i => (i - 1) * 100;
+        let x, alpha = 1, sc = 1, split = 0, tag = 0, num = 0, dbn = 0, c = '';
+        if (p < .12) { x = lerp(stX, cX, ease(p / .12)); c = '1 · o PDF chega à estação de corte'; }
+        else if (p < .26) { x = cX; split = ease((p - .12) / .14); c = '2 · chunking: o guia vira blocos independentes'; }
+        else if (p < .44) { x = lerp(cX, tX, ease((p - .26) / .18)); split = 1; c = '2 · os blocos seguem para a classificação'; }
+        else if (p < .58) { x = tX; split = 1; tag = ease((p - .44) / .1); c = '3 · a IA etiqueta e o Pydantic valida o formato'; }
+        else if (p < .74) { const q = ease((p - .58) / .16); x = lerp(tX, eX, q); split = 1; tag = 1 - Math.max(0, (q - .6) / .4); num = q > .65 ? 1 : 0; c = '4 · o modelo de embedding transforma em vetor'; }
+        else if (p < .9) { const q = ease((p - .74) / .16); x = lerp(eX, dbx, q); split = 1; num = 1; alpha = 1 - Math.max(0, (q - .75) / .25); sc = 1 - q * .35; dbn = q > .8 ? 1 : 0; c = '5 · os vetores entram no banco vetorial'; }
+        else { x = dbx; alpha = 0; dbn = 1; c = '6 · pronto: o guia agora é pesquisável por significado'; }
+        cap.textContent = c; pyd.textContent = (p > .46 && p < .6) ? '✓ ChunkMeta válido' : '';
+        chips.forEach((ch, i) => {
+          const y = Y + off(i) * split + (split === 0 ? 0 : 0);
+          ch.g.setAttribute('transform', `translate(${x},${p < .12 ? Y : y}) scale(${sc})`); ch.g.style.opacity = split === 0 && i > 0 ? 0 : alpha;
+          ch.a.textContent = p < .12 ? 'guia_santiago.pdf' : (num ? ch.l[2] : ch.l[0]);
+          ch.b.textContent = tag > .05 ? ch.l[1] : ''; ch.b.style.opacity = tag;
+        });
+        rows.forEach((r, i) => r.setAttribute('opacity', p > .88 ? 1 : (p > .9 ? 1 : 0)));
+        rows.forEach((r, i) => r.setAttribute('opacity', p >= .83 + i * .02 ? .9 : 0));
+      });
+    })();
+
+    /* ============ 10 · embeddings: números e barras ============ */
+    (function () {
+      let iv = null;
+      SC.s10 = {
+        start() {
+          const v = $('#s10vec'); const b1 = $('#s10b1'), b2 = $('#s10b2'), v1 = $('#s10v1'), v2 = $('#s10v2');
+          const upd = () => { v.textContent = '[ ' + Array.from({ length: 5 }, () => (Math.random() * 1.6 - .8).toFixed(2).replace('-', '−')).join(' ') + ' … ]'; };
+          const cyc = async () => { b1.style.width = '0%'; b2.style.width = '0%'; v1.textContent = '0.00'; v2.textContent = '0.00'; await sleep(1500); b1.style.width = '91%'; v1.textContent = '0.91'; await sleep(900); b2.style.width = '24%'; v2.textContent = '0.24'; };
+          upd(); clearInterval(iv); iv = setInterval(upd, 700); cyc(); this.t = setInterval(cyc, 7000);
+        },
+        stop() { clearInterval(iv); clearInterval(this.t); }
+      };
+    })();
+
+    /* ============ 11 · banco vetorial: dispersão ============ */
+    (function () {
+      const svg = $('#s11svg'); let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+      const cl = [{ x: 220, y: 170, c: '#FF904D', n: 'hospedagem' }, { x: 640, y: 190, c: '#c084fc', n: 'passeios de casal' }, { x: 420, y: 430, c: '#38bdf8', n: 'família e crianças' }];
+      const pts = [];
+      cl.forEach((c, ci) => { text(svg, c.x, c.y - 100, 'nd-s', c.n, { 'text-anchor': 'middle', style: 'font-size:21px;fill:' + c.c }); for (let i = 0; i < 14; i++) { const a = rnd() * 6.28, r = Math.sqrt(rnd()) * 95; const p = { x: c.x + Math.cos(a) * r, y: c.y + Math.sin(a) * r, ci, e: el('circle', { r: 7, fill: c.c, opacity: .6 }, svg) }; p.e.setAttribute('cx', p.x); p.e.setAttribute('cy', p.y); pts.push(p); } });
+      const lines = [0, 1, 2].map(() => el('line', { stroke: '#fff', 'stroke-width': 2, 'stroke-dasharray': '6 6', opacity: 0 }, svg));
+      const q = el('g', {}, svg); el('circle', { r: 16, fill: '#fff' }, q); el('circle', { r: 30, fill: 'none', stroke: '#fff', 'stroke-width': 2, style: 'animation:pulse 1.6s infinite' }, q);
+      const lbl = text(svg, 450, 540, 'cap', '', { style: 'font-size:24px' });
+      mkScene('s11', async dead => {
+        for (let ci = 0; ci < 3; ci++) {
+          if (dead()) return;
+          const from = { x: 450, y: 300 }; const to = { x: cl[ci].x + 20, y: cl[ci].y + 10 };
+          lines.forEach(l => l.setAttribute('opacity', 0)); pts.forEach(p => p.e.setAttribute('opacity', .6)); pts.forEach(p => p.e.setAttribute('r', 7));
+          lbl.textContent = ['pergunta: “hotel bonito perto do centro”', 'pergunta: “vinícola para casal”', 'pergunta: “passeio com criança”'][ci];
+          await tween(1200, k => { const e = ease(k); q.setAttribute('transform', `translate(${lerp(from.x, to.x, e)},${lerp(from.y, to.y, e)})`); }, dead);
+          const near = pts.map(p => ({ p, d: Math.hypot(p.x - to.x, p.y - to.y) })).sort((a, b) => a.d - b.d).slice(0, 3);
+          pts.forEach(p => p.e.setAttribute('opacity', .18));
+          near.forEach((n, i) => { n.p.e.setAttribute('opacity', 1); n.p.e.setAttribute('r', 12); lines[i].setAttribute('x1', to.x); lines[i].setAttribute('y1', to.y); lines[i].setAttribute('x2', n.p.x); lines[i].setAttribute('y2', n.p.y); lines[i].setAttribute('opacity', .9); });
+          await sleep(2600);
+          await tween(700, k => { const e = ease(k); q.setAttribute('transform', `translate(${lerp(to.x, 450, e)},${lerp(to.y, 300, e)})`); }, dead);
+        }
+      });
+    })();
+
+    /* ============ 12 · re-ranking ============ */
+    (function () {
+      const items = [['Parque infantil · Bicentenário', 92, 18], ['Vinícola Santa Rita · degustação', 88, 96], ['Hotel com piscina kids', 85, 22], ['Teleférico · San Cristóbal', 83, 90], ['Museu · Bellas Artes', 79, 71], ['Bar com música ao vivo', 77, 64], ['Vinícola Concha y Toro', 74, 93], ['Zoológico · Metropolitano', 71, 12]];
+      let lst, els;
+      const build = () => { lst = $('#s12list'); lst.innerHTML = ''; els = items.map((it, i) => { const d = document.createElement('div'); d.style.cssText = `position:absolute;left:0;right:0;height:56px;display:flex;align-items:center;gap:18px;padding:0 20px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);font:600 22px Inter;transition:all .9s cubic-bezier(.22,1,.36,1)`; d.innerHTML = `<span style="flex:1">${it[0]}</span><b class="mono" style="color:var(--cyan)">${it[1]}</b>`; lst.appendChild(d); return d; }); };
+      mkScene('s12', async dead => {
+        build(); const lbl = $('#s12lbl');
+        const place = order => order.forEach((idx, pos) => { els[idx].style.top = (pos * 64) + 'px'; });
+        place(items.map((_, i) => i)); lbl.textContent = 'busca rápida · score aproximado'; await sleep(2600); if (dead()) return;
+        const order = items.map((_, i) => i).sort((a, b) => items[b][2] - items[a][2]);
+        items.forEach((it, i) => { els[i].querySelector('b').textContent = it[2]; els[i].querySelector('b').style.color = 'var(--orange)'; });
+        lbl.textContent = 'cross-encoder · perfil casal'; place(order);
+        await sleep(900); order.forEach((idx, pos) => { if (pos < 3) { els[idx].style.background = 'rgba(53,208,127,.18)'; els[idx].style.borderColor = 'var(--green)'; } else els[idx].style.opacity = .3; });
+        await sleep(4200);
+      });
+    })();
+
+    /* ============ 13 · árvore do RAG ============ */
+    (function () {
+      const svg = $('#s13svg'); svg.setAttribute('viewBox', '0 0 1680 700');
+      const br = [
+        ['CRAG', 'avalia e corrige a busca antes de gerar', '#c084fc'],
+        ['CAG', 'pré-carrega o conhecimento, sem buscar', '#38bdf8'],
+        ['GraphRAG', 'grafos de conhecimento e entidades', '#35D07F'],
+        ['Agentic RAG', 'um agente decide fonte, estratégia e ação', '#FF904D'],
+        ['Adaptive RAG', 'escolhe a estratégia pela complexidade', '#FFC766'],
+        ['Self-RAG', 'decide se busca e revisa a própria resposta', '#f472b6'],
+        ['Multimodal RAG', 'texto, imagem e áudio no mesmo fluxo', '#7dd3fc']
+      ];
+      const cx = 190, cy = 350, H = 92, y0 = 350 - (br.length - 1) * H / 2;
+      const items = br.map((b, i) => {
+        const y = y0 + i * H, ex = 700;
+        const isStar = (i === 3);
+        const w = isStar ? 290 : 250;
+        const p = el('path', { d: `M${cx + 90} ${cy} C ${cx + 330} ${cy}, ${ex - 260} ${y}, ${ex} ${y}`, fill: 'none', stroke: b[2], 'stroke-width': isStar ? 6 : 5, 'stroke-linecap': 'round', opacity: .85 }, svg);
+        const g = el('g', { transform: `translate(${ex + 10},${y})`, style: 'transition:all .5s' }, svg);
+        el('rect', { x: 0, y: -34, width: w, height: 68, rx: 34, fill: isStar ? '#1f130b' : '#10131b', stroke: b[2], 'stroke-width': isStar ? 3.5 : 2.5, style: isStar ? 'filter:drop-shadow(0 0 22px rgba(255,144,77,.6))' : '' }, g);
+        if (isStar) {
+          text(g, w / 2, 0, 'nd-t', b[0], { 'text-anchor': 'middle', style: 'font-size:24px;fill:#fff;font-weight:800' });
+          text(g, w / 2, 22, 'nd-s', '★ NOSSO PROJETO', { 'text-anchor': 'middle', style: 'font-size:15px;fill:#FF904D;font-weight:700;letter-spacing:1.5px' });
+        } else {
+          text(g, w / 2, 9, 'nd-t', b[0], { 'text-anchor': 'middle', style: 'font-size:25px' });
+        }
+        text(svg, 1030, y + 8, 'nd-s', b[1], { style: 'font-size:25px;fill:rgba(255,255,255,.72)' });
+        return { p, g, c: b[2], y };
+      });
+      const root = el('g', { transform: `translate(${cx},${cy})` }, svg);
+      el('circle', { r: 92, fill: '#10131b', stroke: '#fff', 'stroke-width': 3, style: 'filter:drop-shadow(0 0 22px rgba(255,144,77,.5))' }, root);
+      el('circle', { r: 112, fill: 'none', stroke: '#FF904D', 'stroke-width': 2, 'stroke-dasharray': '6 10', style: 'transform-origin:center;animation:spin 14s linear infinite' }, root);
+      text(root, 0, 12, 'nd-t', 'RAG', { 'text-anchor': 'middle', style: 'font-size:46px' });
+      const dot = el('circle', { r: 10, fill: '#fff', class: 'tok', style: 'color:#fff;opacity:0' }, svg);
+      mkScene('s13', async dead => {
+        const Ls = items.map(it => it.p.getTotalLength());
+        items.forEach((it, i) => { it.p.style.strokeDasharray = Ls[i]; it.p.style.strokeDashoffset = Ls[i]; it.p.style.opacity = .85; it.g.style.opacity = 0; });
+        await sleep(300);
+        await tween(1800, k => { items.forEach((it, i) => { const q = ease(Math.min(1, Math.max(0, (k * 1.5 - i * .1) / 1))); it.p.style.strokeDashoffset = Ls[i] * (1 - q); it.g.style.opacity = q > .9 ? 1 : 0; }); }, dead);
+        if (dead()) return; items.forEach(it => { it.p.style.strokeDashoffset = 0; it.g.style.opacity = 1; });
+        await sleep(800); if (dead()) return;
+        while (!dead()) { for (let i = 0; i < items.length; i++) { if (dead()) return; items.forEach(it => { it.p.style.opacity = .3; it.g.style.transform = it.g.style.transform.replace(/ scale\([^)]*\)/, ''); }); items[i].p.style.opacity = 1; await along(items[i].p, dot, 1100, dead); dot.style.opacity = 0; await sleep(i === 3 ? 1700 : 700); } await sleep(600); items.forEach(it => it.p.style.opacity = .85); }
+      });
+    })();
+
+    /* ============ 14 · memória ============ */
+    mkScene('s14', async dead => {
+      const A = $('#s14a'), B = $('#s14b'), ca = $('#s14ca'), cb = $('#s14cb'); A.innerHTML = ''; B.innerHTML = '';
+      const msgs = ['Roteiro de 4 dias em Santiago, casal, R$ 5.000', 'Troque o jantar do dia 2 por uma pizzaria', 'E se chover no dia 3?', 'Qual o custo total agora?', 'Mantenha o hotel parceiro', 'Pode incluir uma vinícola?', 'Quanto sobra do orçamento?'];
+      const hist = [];
+      await sleep(1000);
+      for (const m of msgs) {
+        if (dead()) return; hist.push(m); const mk = t => { const d = document.createElement('div'); d.textContent = t; return d; };
+        A.appendChild(mk(m)); const win = hist.slice(-3); B.innerHTML = ''; win.forEach(t => B.appendChild(mk(t)));
+        ca.textContent = `${hist.length} mensagens no prompt · custo ↑`; cb.textContent = `${win.length} mensagens (K = 3) · custo estável`; await sleep(1700);
+      }
+      await sleep(2500);
+    });
+
+    /* ============ 15 · fluxo completo ============ */
+    (function () {
+      const svg = $('#s15svg'); svg.setAttribute('viewBox', '0 0 1700 620');
+      const Yc = 310, ag = [130, 310, 490];
+      node(svg, 'f0', 95, Yc, 150, 130, 'Usuário', '+ memória (K=3)', '#FF904D');
+      node(svg, 'fg_in', 260, Yc, 150, 100, 'Guardrails', 'entrada', '#c084fc');
+      node(svg, 'f1', 430, Yc, 150, 100, 'Roteador', 'LangGraph', '#FF904D');
+      const names = [['Nó Guia', 'RAG + re-ranking', '#FF904D'], ['Nó Clima', 'API web', '#38bdf8'], ['Nó Financeiro', 'calculadora', '#35D07F']];
+      const tools = ['Banco vetorial', 'Busca na web', 'Cálculo'];
+      names.forEach((n, i) => { edge(svg, 'ra' + i, `M430 ${Yc} L670 ${ag[i]}`, n[2]); edge(svg, 'at' + i, `M670 ${ag[i]} L970 ${ag[i]}`, n[2]); edge(svg, 'tc' + i, `M970 ${ag[i]} L1220 ${Yc}`, n[2]); });
+      edge(svg, 'u_g', `M95 ${Yc} L260 ${Yc}`, '#c084fc'); edge(svg, 'g_r', `M260 ${Yc} L430 ${Yc}`, '#FF904D');
+      edge(svg, 'cg', `M1220 ${Yc} L1410 ${Yc}`, '#FFC766'); edge(svg, 'gr', `M1410 ${Yc} L1585 ${Yc}`, '#35D07F');
+      edge(svg, 'back', `M1220 ${Yc - 60} L1220 40 L670 40 L670 ${ag[0] - 52}`, '#ff5d6c');
+      names.forEach((n, i) => { node(svg, 'fa' + i, 670, ag[i], 210, 94, n[0], n[1], n[2]); node(svg, 'ft' + i, 970, ag[i], 210, 84, tools[i], '', n[2]); });
+      node(svg, 'f5', 1220, Yc, 140, 100, '≤ R$ 5k?', 'validação', '#FFC766');
+      node(svg, 'f6', 1410, Yc, 160, 100, 'Guardrails', 'saída', '#c084fc'); node(svg, 'f7', 1585, Yc, 130, 100, 'Roteiro', 'final', '#35D07F');
+      text(svg, 945, 26, 'nd-s', 'loop de correção se exceder o orçamento', { 'text-anchor': 'middle', style: 'fill:#ff8f99;font-size:20px;font-weight:600' });
+      const cap = text(svg, 850, 600, 'cap', '', { style: 'font-size:26px' });
+      const mkT = c => tok(svg, c); const TT = [mkT('#FF904D'), mkT('#38bdf8'), mkT('#35D07F')], T0 = mkT('#fff'), T1 = mkT('#FFC766');
+      mkScene('s15', async dead => {
+        const P = id => document.getElementById(id);[...TT, T0, T1].forEach(t => t.style.opacity = 0);
+        cap.textContent = 'a pergunta entra, com o histórico recente'; await sleep(800); if (dead()) return;
+        await along(P('u_g'), T0, 500, dead); hit('fg_in'); cap.textContent = 'guardrail de entrada: valida escopo e dados'; await sleep(500);
+        await along(P('g_r'), T0, 500, dead); hit('f1'); T0.style.opacity = 0; cap.textContent = 'o roteador direciona a execução para os nós especialistas';
+        await Promise.all(names.map(async (n, i) => { await sleep(i * 250); await along(P('ra' + i), TT[i], 900, dead); hit('fa' + i); await along(P('at' + i), TT[i], 900, dead); hit('ft' + i); await along(P('tc' + i), TT[i], 900, dead); TT[i].style.opacity = 0; }));
+        if (dead()) return; hit('f5'); cap.textContent = 'o estado reúne tudo e valida o orçamento';
+        await sleep(700);
+        await along(P('back'), T1, 1600, dead); T1.style.opacity = 0; hit('fa0'); cap.textContent = 'excedeu o orçamento? o loop corrige com o Guia'; await sleep(900);
+        await along(P('cg'), T1, 650, dead); hit('f6'); cap.textContent = 'guardrail de saída: valida qualidade e regras';
+        await along(P('gr'), T1, 600, dead); hit('f7', 1800); T1.style.opacity = 0; cap.textContent = 'roteiro validado entregue ao usuário';
+        await sleep(3000);
+      });
+    })();
+
+    /* ============ 16 · MCP ============ */
+    (function () {
+      const svg = $('#s16svg'); svg.setAttribute('viewBox', '0 0 1680 240'); const Y = 120;
+      const n = [[120, 'Usuário', '', '#FF904D'], [430, 'Host', 'o app do agente', '#FF904D'], [740, 'Cliente MCP', '', '#38bdf8'], [1050, 'Servidor MCP', 'STDIO · HTTP/SSE', '#c084fc'], [1420, 'Clima · Guia · Cálculo', 'ferramentas e dados', '#35D07F']];
+      for (let i = 0; i < 4; i++) edge(svg, 'm' + i, `M${n[i][0]} ${Y} L${n[i + 1][0]} ${Y}`, n[i + 1][3]);
+      n.forEach((x, i) => node(svg, 'mn' + i, x[0], Y, i === 4 ? 320 : 220, 110, x[1], x[2], x[3]));
+      const t = tok(svg, '#fff');
+      mkScene('s16', async dead => { for (let i = 0; i < 4; i++) { if (dead()) return; await along(document.getElementById('m' + i), t, 900, dead); hit('mn' + (i + 1)); } t.style.opacity = 0; await sleep(1200); });
+    })();
+
+    /* ============ 25 · órbita final ============ */
+    (function () {
+      const box = $('#s25orb'); const labs = ['Tokens', 'Chunks', 'Embeddings', 'Banco vetorial', 'Re-ranking', 'RAG', 'LangGraph', 'Agentes', 'MCP', 'Guardrails'];
+      const els = labs.map((l, i) => { const d = document.createElement('div'); d.textContent = l; d.style.cssText = `position:absolute;left:0;top:0;font:600 24px var(--mono);padding:10px 20px;border-radius:99px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.05);color:${['#FF904D', '#c084fc', '#38bdf8', '#35D07F', '#FFC766'][i % 5]}`; box.appendChild(d); return d; });
+      frameLoop('s25', 40, q => { els.forEach((d, i) => { const a = q * 6.2832 + i * 6.2832 / els.length; const x = 960 + Math.cos(a) * 760, y = 540 + Math.sin(a) * 400; d.style.transform = `translate(${x}px,${y}px) translate(-50%,-50%)`; d.style.opacity = .85; }); });
+    })();
+
+    /* ============ NAVEGAÇÃO ============ */
+    const slides = [...document.querySelectorAll('.slide')]; let cur = -1;
+    slides.forEach((s, i) => s.querySelectorAll('.n').forEach(n => n.textContent = String(i + 1).padStart(2, '0')));
+    document.querySelectorAll('#s08tok .tk').forEach((t, i) => t.style.setProperty('--n', i));
+    function fit() { document.documentElement.style.setProperty('--s', Math.min(innerWidth / 1920, innerHeight / 1080)); }
+    function go(i) {
+      i = Math.max(0, Math.min(slides.length - 1, i)); if (i === cur) return;
+      if (cur >= 0) { slides[cur].classList.remove('active'); const o = SC[slides[cur].dataset.scene]; o && o.stop(); }
+      cur = i; const s = slides[i]; void s.offsetWidth; s.classList.add('active');
+      const sc = SC[s.dataset.scene]; sc && setTimeout(() => sc.start(), 650);
+      $('#cnt').textContent = (i + 1) + ' / ' + slides.length; $('#bar').style.width = ((i + 1) / slides.length * 100) + '%'; history.replaceState(null, '', '#' + (i + 1));
+    }
+    addEventListener('resize', fit); fit();
+    addEventListener('keydown', e => {
+      if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter'].includes(e.key)) { e.preventDefault(); go(cur + 1); }
+      else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); go(cur - 1); }
+      else if (e.key === 'Home') go(0); else if (e.key === 'End') go(slides.length - 1);
+      else if (e.key.toLowerCase() === 'f') { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }
+    });
+    $('#next').onclick = () => go(cur + 1); $('#prev').onclick = () => go(cur - 1);
+    let tx = 0; addEventListener('touchstart', e => tx = e.touches[0].clientX); addEventListener('touchend', e => { const d = e.changedTouches[0].clientX - tx; if (Math.abs(d) > 60) go(cur + (d < 0 ? 1 : -1)); });
+    lucide.createIcons();
+    go((parseInt(location.hash.slice(1)) || 1) - 1);
+  </script>
+  <script defer src="mira/mira-draw.js"></script>
 </body>
+
 </html>

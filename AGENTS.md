@@ -1,6 +1,6 @@
 # Apresentacao — Pasta de criação de slides (Mira)
 
-Esta pasta é uma instalação do **Mira**: agentes e templates para criar apresentações HTML animadas com D3.js. Trate Kayk pelo nome e interaja em pt-br.
+Esta pasta é uma instalação do **Mira**: agentes e templates para criar apresentações HTML animadas com D3.js. Trate Brenda pelo nome e interaja em pt-br.
 
 ## Regras para o agente
 
